@@ -11,11 +11,12 @@ import os
 import sys
 from pathlib import Path
 
-# Load .env from backend root
+# Load .env from backend root; then .env.railway so Railway DATABASE_URL overrides
 backend_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(backend_root))
 from dotenv import load_dotenv
 load_dotenv(backend_root / ".env")
+load_dotenv(backend_root / ".env.railway")  # put DATABASE_URL here to seed Railway Postgres
 
 from app.database import SessionLocal, init_db
 from app.models.user import User

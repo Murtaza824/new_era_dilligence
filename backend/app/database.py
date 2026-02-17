@@ -7,12 +7,21 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./jarvis.db")
 
+# Railway and some hosts use postgres://; SQLAlchemy/psycopg2 expect postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql://" + DATABASE_URL.split("://", 1)[1]
+
 # SQLite needs check_same_thread=False; Postgres does not
 connect_args = {}
 if "sqlite" in DATABASE_URL:
     connect_args["check_same_thread"] = False
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+# Postgres: verify connections before use (helps with Railway / serverless)
+engine = create_engine(
+    DATABASE_URL,
+    connect_args=connect_args,
+    pool_pre_ping=True,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

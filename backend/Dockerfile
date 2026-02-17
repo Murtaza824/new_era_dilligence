@@ -1,7 +1,11 @@
 # Jarvis backend — Railway / Docker
+# Build context must be the backend directory (Railway: set Root Directory to "backend")
 FROM python:3.12-slim
 
 WORKDIR /app
+
+# ChromaDB: avoid native build in slim image (often fails without build-essential)
+ENV HNSWLIB_NO_NATIVE=1
 
 # Install dependencies
 COPY requirements.txt .
