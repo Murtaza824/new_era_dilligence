@@ -12,10 +12,38 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.database import init_db
+from app.auth import hash_password
+from app.database import SessionLocal, init_db
+from app.models.user import User
 from app.routers import auth, companies, documents, memos, portfolio, simulations
 
 logger = logging.getLogger("jarvis")
+
+ADMIN_EMAILS = ["murtaza@neweraventures.com", "carter@neweraventures.com"]
+ADMIN_DEFAULT_PASSWORD = os.getenv("ADMIN_INITIAL_PASSWORD", "ChangeMe123")
+
+
+def _seed_admin_if_empty():
+    """Create default admin users if no users exist (e.g. fresh Railway deploy)."""
+    db = SessionLocal()
+    try:
+        if db.query(User).first() is not None:
+            return
+        password_hash = hash_password(ADMIN_DEFAULT_PASSWORD)
+        for email in ADMIN_EMAILS:
+            user = User(
+                email=email.lower().strip(),
+                role="admin",
+                password_hash=password_hash,
+            )
+            db.add(user)
+        db.commit()
+        logger.info("Seeded default admin users (no users existed).")
+    except Exception as e:
+        logger.warning("Seed admin skipped or failed: %s", e)
+        db.rollback()
+    finally:
+        db.close()
 
 # CORS: comma-separated origins, e.g. "http://localhost:3000,https://myapp.vercel.app"
 _CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001")
@@ -24,8 +52,9 @@ CORS_ORIGINS_LIST = [o.strip() for o in _CORS_ORIGINS.split(",") if o.strip()]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create DB tables
+    # Startup: create DB tables and seed admin users if empty
     init_db()
+    _seed_admin_if_empty()
     yield
 
 
