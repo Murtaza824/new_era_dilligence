@@ -93,6 +93,18 @@ export default function PortfolioDetailPage() {
   const [simLoading, setSimLoading] = useState(false);
   const [runningNewSim, setRunningNewSim] = useState(false);
 
+  const loadMemo = useCallback(
+    (companyId: string) => {
+      setMemoLoading(true);
+      memosApi
+        .get(companyId)
+        .then(setMemo)
+        .catch(() => setMemo(null))
+        .finally(() => setMemoLoading(false));
+    },
+    [],
+  );
+
   const loadEntry = useCallback(() => {
     setLoading(true);
     return portfolioApi
@@ -113,18 +125,6 @@ export default function PortfolioDetailPage() {
       .catch(() => {})
       .finally(() => setUpdatesLoading(false));
   }, [entryId]);
-
-  const loadMemo = useCallback(
-    (companyId: string) => {
-      setMemoLoading(true);
-      memosApi
-        .get(companyId)
-        .then(setMemo)
-        .catch(() => setMemo(null))
-        .finally(() => setMemoLoading(false));
-    },
-    [],
-  );
 
   const loadLastSim = useCallback(() => {
     setSimLoading(true);
