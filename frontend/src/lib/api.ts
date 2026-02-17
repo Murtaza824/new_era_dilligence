@@ -41,6 +41,50 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/** For long-running requests (e.g. memo generation: 1–2+ min). Uses a 5-minute timeout. */
+const MEMO_GENERATE_TIMEOUT_MS = 5 * 60 * 1000;
+
+async function requestLong<T>(path: string, opts?: RequestInit): Promise<T> {
+  const token = getToken();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), MEMO_GENERATE_TIMEOUT_MS);
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...opts?.headers,
+  };
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      ...opts,
+      headers,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? `API error ${res.status}`);
+    }
+    return res.json();
+  } catch (err) {
+    if (err instanceof Error) {
+      if (err.name === "AbortError") {
+        throw new Error(
+          "Memo generation timed out (takes 1–2 minutes). The server may have a request time limit; try again or check Railway logs.",
+        );
+      }
+      if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
+        throw new Error(
+          "Cannot reach the backend. Memo generation can take 1–2 minutes—if you waited that long, the server may have timed out. Otherwise check NEXT_PUBLIC_API_URL and CORS.",
+        );
+      }
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 const AUTH_TIMEOUT_MS = 15_000;
 
 async function authRequest<T>(path: string, opts?: RequestInit): Promise<T> {
@@ -193,10 +237,10 @@ export const memos = {
   get: (companyId: string) => request<Memo>(`/companies/${companyId}/memo`),
 
   generate: (companyId: string) =>
-    request<Memo>(`/companies/${companyId}/memo/generate`, { method: "POST" }),
+    requestLong<Memo>(`/companies/${companyId}/memo/generate`, { method: "POST" }),
 
   revise: (companyId: string) =>
-    request<Memo>(`/companies/${companyId}/memo/revise`, { method: "POST" }),
+    requestLong<Memo>(`/companies/${companyId}/memo/revise`, { method: "POST" }),
 
   refineSection: (companyId: string, sectionTitle: string, instructions: string) =>
     request<Memo>(`/companies/${companyId}/memo/section/refine`, {

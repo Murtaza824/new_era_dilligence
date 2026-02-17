@@ -475,8 +475,8 @@ export function MemoTab({ companyId, onMemoGenerated }: Props) {
 
       {/* Full markdown view */}
       {viewMode === "full" && (
-        <div className="rounded-xl border bg-card p-6">
-          <div className="prose prose-sm dark:prose-invert max-w-none">
+        <div className="min-w-0 overflow-x-auto rounded-xl border bg-card p-6">
+          <div className="prose prose-sm dark:prose-invert max-w-none break-words prose-pre:whitespace-pre-wrap prose-pre:break-words">
             <Markdown>{memo.content}</Markdown>
           </div>
         </div>
