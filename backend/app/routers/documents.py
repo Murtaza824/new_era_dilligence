@@ -119,6 +119,32 @@ def upload_document_file(
     return doc
 
 
+@router.post("/reindex")
+def reindex_company_documents(
+    company_id: str,
+    db: Session = Depends(get_db),
+):
+    """Re-index all ready documents for this company into RAG (for memo generation). Use after fixing OPENAI_API_KEY or adding a persistent Chroma volume."""
+    _check_company(company_id, db)
+    docs = (
+        db.query(Document)
+        .filter(
+            Document.company_id == company_id,
+            Document.status == "ready",
+            Document.extracted_text.isnot(None),
+        )
+        .all()
+    )
+    from app.services.rag import delete_company_index, index_document
+
+    delete_company_index(company_id)
+    total_chunks = 0
+    for doc in docs:
+        if doc.extracted_text and doc.extracted_text.strip():
+            total_chunks += index_document(company_id, doc.id, doc.extracted_text)
+    return {"indexed": len(docs), "chunks": total_chunks}
+
+
 @router.get("", response_model=list[DocumentOut])
 def list_documents(company_id: str, db: Session = Depends(get_db)):
     _check_company(company_id, db)

@@ -12,6 +12,7 @@ import {
   Loader2,
   Download,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,6 +36,7 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
   const [uploading, setUploading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reindexing, setReindexing] = useState(false);
 
   // Form state
   const [notesText, setNotesText] = useState("");
@@ -103,6 +105,22 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
       toast.error("Failed to remove document");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleReindex = async () => {
+    setReindexing(true);
+    try {
+      const res = await docsApi.reindex(companyId);
+      toast.success(
+        `Re-indexed ${res.indexed} document(s), ${res.chunks} chunks. Memo generation can now use them.`,
+      );
+    } catch {
+      toast.error(
+        "Re-index failed. Ensure OPENAI_API_KEY is set on the backend.",
+      );
+    } finally {
+      setReindexing(false);
     }
   };
 
@@ -183,7 +201,7 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
   return (
     <div>
       {/* Upload buttons */}
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -212,6 +230,22 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
           <Globe className="mr-1.5 size-4" />
           Add Website
         </Button>
+        {docs.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReindex}
+            disabled={reindexing}
+            title="Re-index documents for memo generation (use if memo shows no source materials)"
+          >
+            {reindexing ? (
+              <Loader2 className="mr-1.5 size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-1.5 size-4" />
+            )}
+            Re-index for memo
+          </Button>
+        )}
       </div>
 
       {/* Upload forms */}

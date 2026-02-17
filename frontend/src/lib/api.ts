@@ -74,7 +74,7 @@ async function authRequest<T>(path: string, opts?: RequestInit): Promise<T> {
       }
       if (err.message.includes("Failed to fetch") || err.message.includes("NetworkError")) {
         throw new Error(
-          "Cannot reach the backend. Is it running? Check NEXT_PUBLIC_API_URL (e.g. http://localhost:8000)."
+          "Cannot reach the backend. On Vercel: set NEXT_PUBLIC_API_URL in Settings → Environment Variables to your Railway API URL (e.g. https://your-app.up.railway.app), then redeploy—env is set at build time."
         );
       }
     }
@@ -148,6 +148,13 @@ export const documents = {
     request<{ ok: boolean }>(`/companies/${companyId}/documents/${documentId}`, {
       method: "DELETE",
     }),
+
+  /** Re-index all documents for this company into RAG so memo generation has source materials. */
+  reindex: (companyId: string) =>
+    request<{ indexed: number; chunks: number }>(
+      `/companies/${companyId}/documents/reindex`,
+      { method: "POST" },
+    ),
 
   /** Download the original file (e.g. PDF). Triggers a file save in the browser. */
   downloadFile: async (

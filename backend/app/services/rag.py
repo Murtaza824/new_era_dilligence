@@ -9,15 +9,20 @@ from chromadb.config import Settings
 
 logger = logging.getLogger(__name__)
 
-# Persistent ChromaDB storage
-CHROMA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "chroma_data")
+# Persistent ChromaDB storage. On Railway, set CHROMA_DATA_PATH to a volume path (e.g. /data/chroma).
+CHROMA_DIR = os.getenv(
+    "CHROMA_DATA_PATH",
+    os.path.join(os.path.dirname(__file__), "..", "..", "chroma_data"),
+)
 _client: chromadb.ClientAPI | None = None
 
 
 def _get_chroma_client() -> chromadb.ClientAPI:
     global _client
     if _client is None:
-        _client = chromadb.PersistentClient(path=os.path.abspath(CHROMA_DIR))
+        path = os.path.abspath(CHROMA_DIR)
+        os.makedirs(path, exist_ok=True)
+        _client = chromadb.PersistentClient(path=path)
     return _client
 
 
