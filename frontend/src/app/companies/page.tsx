@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import Link from "next/link";
 
@@ -11,26 +11,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { companies as companiesApi } from "@/lib/api";
 import type { Company } from "@/types";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function CompaniesPage() {
+  const { user, loading: authLoading } = useAuth();
   const [list, setList] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     companiesApi
       .list()
       .then(setList)
       .catch(() => toast.error("Failed to load companies"))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    if (!authLoading && user) load();
+    else if (!authLoading && !user) setLoading(false);
+  }, [authLoading, user, load]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
