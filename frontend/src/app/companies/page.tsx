@@ -9,9 +9,9 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/auth-context";
 import { companies as companiesApi } from "@/lib/api";
 import type { Company } from "@/types";
-import { useAuth } from "@/contexts/auth-context";
 
 export default function CompaniesPage() {
   const { user, loading: authLoading } = useAuth();
