@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
 import Link from "next/link";
+
 import { Plus, Trash2, Briefcase, Pencil, Check, X, Activity, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import type { PortfolioSimulationLatest } from "@/types";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { portfolioApi } from "@/lib/api";
-import type { PortfolioSnapshot } from "@/types";
+import type { PortfolioSimulationLatest, PortfolioSnapshot } from "@/types";
 
 function fmt$(n: number | null): string {
   if (n == null) return "—";
@@ -299,7 +300,6 @@ export default function PortfolioPage() {
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
             className="max-w-xs"
-            autoFocus
           />
           <Button onClick={handleAdd} disabled={creating || !newName.trim()} size="sm">
             {creating ? "Adding…" : "Add"}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
 import { Building2, Briefcase, LogOut } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";

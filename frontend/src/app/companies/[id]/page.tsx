@@ -1,16 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+
 import { ArrowLeft, Briefcase, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import { companies as companiesApi, portfolioApi } from "@/lib/api";
 import { DocumentsTab } from "@/components/jarvis/documents-tab";
 import { MemoTab } from "@/components/jarvis/memo-tab";
 import { SimulationTab } from "@/components/jarvis/simulation-tab";
+import { Button } from "@/components/ui/button";
+import { companies as companiesApi, portfolioApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Company } from "@/types";
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+
 import {
   Sparkles,
   RefreshCw,
@@ -15,7 +16,6 @@ import {
   Send,
   X,
 } from "lucide-react";
-
 import Markdown from "react-markdown";
 import { toast } from "sonner";
 
@@ -31,7 +31,7 @@ interface Props {
   onMemoGenerated?: () => void;
 }
 
-export function MemoTab({ companyId, companyName, onMemoGenerated }: Props) {
+export function MemoTab({ companyId, onMemoGenerated }: Props) {
   const [memo, setMemo] = useState<Memo | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -442,7 +442,6 @@ export function MemoTab({ companyId, companyName, onMemoGenerated }: Props) {
                             }
                           }}
                           className="flex-1"
-                          autoFocus
                           disabled={refineLoading}
                         />
                         <Button

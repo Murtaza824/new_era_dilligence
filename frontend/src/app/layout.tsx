@@ -2,12 +2,11 @@ import { Inter } from "next/font/google";
 import localFont from "next/font/local";
 
 import type { Metadata } from "next";
-
 import { Toaster } from "sonner";
 
-import { AuthProvider } from "@/contexts/auth-context";
 import { AppShell } from "@/components/jarvis/app-shell";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/contexts/auth-context";
 import "@/styles/globals.css";
 
 const dmSans = localFont({

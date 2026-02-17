@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+
 import {
   ArrowLeft,
   Plus,
@@ -92,11 +94,16 @@ export default function PortfolioDetailPage() {
   const [runningNewSim, setRunningNewSim] = useState(false);
 
   const loadEntry = useCallback(() => {
-    portfolioApi
+    setLoading(true);
+    return portfolioApi
       .get(entryId)
-      .then(setEntry)
-      .catch(() => router.push("/portfolio"));
-  }, [entryId, router]);
+      .then((e) => {
+        setEntry(e);
+        if (e.company_id) loadMemo(e.company_id);
+      })
+      .catch(() => router.push("/portfolio"))
+      .finally(() => setLoading(false));
+  }, [entryId, router, loadMemo]);
 
   const loadUpdates = useCallback(() => {
     setUpdatesLoading(true);
@@ -129,20 +136,10 @@ export default function PortfolioDetailPage() {
   }, [entryId]);
 
   useEffect(() => {
-    setLoading(true);
-    portfolioApi
-      .get(entryId)
-      .then((e) => {
-        setEntry(e);
-        if (e.company_id) {
-          loadMemo(e.company_id);
-        }
-      })
-      .catch(() => router.push("/portfolio"))
-      .finally(() => setLoading(false));
+    loadEntry();
     loadUpdates();
     loadLastSim();
-  }, [entryId, router, loadUpdates, loadMemo, loadLastSim]);
+  }, [entryId, loadEntry, loadUpdates, loadLastSim]);
 
   const handleAddUpdate = async () => {
     if (!updateContent.trim()) return;
@@ -284,10 +281,11 @@ export default function PortfolioDetailPage() {
             </h3>
             <div className="space-y-3">
               <div>
-                <label className="text-muted-foreground mb-1 block text-xs">
+                <label htmlFor="portfolio-sector" className="text-muted-foreground mb-1 block text-xs">
                   Sector
                 </label>
                 <select
+                  id="portfolio-sector"
                   className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                   value={entry.sector ?? ""}
                   onChange={(e) => {
@@ -307,10 +305,11 @@ export default function PortfolioDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="text-muted-foreground mb-1 block text-xs">
+                <label htmlFor="portfolio-geography" className="text-muted-foreground mb-1 block text-xs">
                   Geography
                 </label>
                 <select
+                  id="portfolio-geography"
                   className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                   value={entry.geography ?? ""}
                   onChange={(e) => {
@@ -330,10 +329,11 @@ export default function PortfolioDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="text-muted-foreground mb-1 block text-xs">
+                <label htmlFor="portfolio-founder-type" className="text-muted-foreground mb-1 block text-xs">
                   Founder type
                 </label>
                 <select
+                  id="portfolio-founder-type"
                   className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                   value={entry.founder_type ?? ""}
                   onChange={(e) => {
@@ -506,7 +506,6 @@ export default function PortfolioDetailPage() {
                   onChange={(e) => setUpdateContent(e.target.value)}
                   rows={4}
                   className="mb-3"
-                  autoFocus
                 />
                 <div className="flex items-center gap-2">
                   <Button

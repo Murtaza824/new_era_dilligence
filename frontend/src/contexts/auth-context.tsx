@@ -7,7 +7,9 @@ import {
   useEffect,
   useState,
 } from "react";
+
 import { usePathname, useRouter } from "next/navigation";
+
 import { authApi, clearToken, setToken as storeToken } from "@/lib/api";
 import type { User } from "@/types";
 

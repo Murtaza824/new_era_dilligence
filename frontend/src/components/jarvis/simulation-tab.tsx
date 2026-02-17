@@ -1,15 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from "recharts";
+
 import {
   Sparkles,
   Play,
@@ -19,7 +11,15 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ function fmtPct(n: number): string {
   return `${n.toFixed(1)}%`;
 }
 
-export function SimulationTab({ companyId, companyName }: Props) {
+export function SimulationTab({ companyId }: Props) {
   // Form state — core inputs
   const [entryVal, setEntryVal] = useState(20_000_000);
   const [checkSize, setCheckSize] = useState(175_000);

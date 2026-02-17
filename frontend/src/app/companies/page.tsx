@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import Link from "next/link";
+
 import { Plus, Building2, FileText, FileCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -73,7 +75,6 @@ export default function CompaniesPage() {
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             className="max-w-xs"
-            autoFocus
           />
           <Button onClick={handleCreate} disabled={creating || !newName.trim()} size="sm">
             {creating ? "Creating…" : "Create"}
