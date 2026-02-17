@@ -93,6 +93,24 @@ export default function PortfolioDetailPage() {
   const [simLoading, setSimLoading] = useState(false);
   const [runningNewSim, setRunningNewSim] = useState(false);
 
+  const loadEntry = useCallback(() => {
+    setLoading(true);
+    return portfolioApi
+      .get(entryId)
+      .then(setEntry)
+      .catch(() => router.push("/portfolio"))
+      .finally(() => setLoading(false));
+  }, [entryId, router]);
+
+  const loadUpdates = useCallback(() => {
+    setUpdatesLoading(true);
+    portfolioApi
+      .listUpdates(entryId)
+      .then(setUpdates)
+      .catch(() => {})
+      .finally(() => setUpdatesLoading(false));
+  }, [entryId]);
+
   const loadMemo = useCallback(
     (companyId: string) => {
       setMemoLoading(true);
@@ -104,27 +122,6 @@ export default function PortfolioDetailPage() {
     },
     [],
   );
-
-  const loadEntry = useCallback(() => {
-    setLoading(true);
-    return portfolioApi
-      .get(entryId)
-      .then((e) => {
-        setEntry(e);
-        if (e.company_id) loadMemo(e.company_id);
-      })
-      .catch(() => router.push("/portfolio"))
-      .finally(() => setLoading(false));
-  }, [entryId, router, loadMemo]);
-
-  const loadUpdates = useCallback(() => {
-    setUpdatesLoading(true);
-    portfolioApi
-      .listUpdates(entryId)
-      .then(setUpdates)
-      .catch(() => {})
-      .finally(() => setUpdatesLoading(false));
-  }, [entryId]);
 
   const loadLastSim = useCallback(() => {
     setSimLoading(true);
@@ -140,6 +137,10 @@ export default function PortfolioDetailPage() {
     loadUpdates();
     loadLastSim();
   }, [entryId, loadEntry, loadUpdates, loadLastSim]);
+
+  useEffect(() => {
+    if (entry?.company_id) loadMemo(entry.company_id);
+  }, [entry?.company_id, loadMemo]);
 
   const handleAddUpdate = async () => {
     if (!updateContent.trim()) return;
