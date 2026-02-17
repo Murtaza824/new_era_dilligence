@@ -1,0 +1,20 @@
+# Local PostgreSQL for Jarvis backend. Optional — use SQLite (default) if you prefer.
+# Usage:
+#   docker compose up -d
+#   In backend/.env set: DATABASE_URL=postgresql://jarvis:jarvis@localhost:5432/jarvis
+#   cd backend && python -m scripts.seed_admin_users && uvicorn app.main:app --reload
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jarvis
+      POSTGRES_PASSWORD: jarvis
+      POSTGRES_DB: jarvis
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
