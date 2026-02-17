@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Loader2,
   Download,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,6 +34,7 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
   >("none");
   const [uploading, setUploading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Form state
   const [notesText, setNotesText] = useState("");
@@ -85,6 +87,22 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
       toast.error("Failed to save call notes");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDelete = async (doc: Document) => {
+    const name = doc.original_filename || doc.type.replace("_", " ");
+    if (!confirm(`Remove "${name}"? This cannot be undone.`)) return;
+    setDeletingId(doc.id);
+    try {
+      await docsApi.delete(companyId, doc.id);
+      load();
+      onDocumentsChanged?.();
+      toast.success("Document removed");
+    } catch {
+      toast.error("Failed to remove document");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -315,6 +333,7 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
                     size="sm"
                     onClick={() => handleDownload(doc)}
                     disabled={downloadingId === doc.id}
+                    title="Download"
                   >
                     {downloadingId === doc.id ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -323,6 +342,20 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
                     )}
                   </Button>
                 )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDelete(doc)}
+                  disabled={deletingId === doc.id}
+                  title="Delete"
+                  className="text-destructive hover:text-destructive"
+                >
+                  {deletingId === doc.id ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
+                </Button>
               </div>
             </div>
           ))}

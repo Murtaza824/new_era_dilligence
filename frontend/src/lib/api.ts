@@ -144,6 +144,11 @@ export const documents = {
     return res.json();
   },
 
+  delete: (companyId: string, documentId: string) =>
+    request<{ ok: boolean }>(`/companies/${companyId}/documents/${documentId}`, {
+      method: "DELETE",
+    }),
+
   /** Download the original file (e.g. PDF). Triggers a file save in the browser. */
   downloadFile: async (
     companyId: string,

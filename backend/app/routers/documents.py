@@ -158,6 +158,25 @@ def download_document_file(
     )
 
 
+@router.delete("/{document_id}")
+def delete_document(
+    company_id: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+):
+    """Delete a document. Any logged-in user who can access the company can delete."""
+    _check_company(company_id, db)
+    doc = db.query(Document).filter(
+        Document.id == document_id,
+        Document.company_id == company_id,
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    db.delete(doc)
+    db.commit()
+    return {"ok": True}
+
+
 def _check_company(company_id: str, db: Session):
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
