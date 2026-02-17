@@ -100,7 +100,7 @@ export default function PortfolioDetailPage() {
       .then(setEntry)
       .catch(() => router.push("/portfolio"))
       .finally(() => setLoading(false));
-  }, [entryId, router]);
+  }, [entryId, router]); // no loadMemo - memo is loaded in useEffect when entry.company_id is set
 
   const loadUpdates = useCallback(() => {
     setUpdatesLoading(true);
