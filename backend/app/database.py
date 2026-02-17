@@ -57,7 +57,27 @@ def _migrate_portfolio_factors():
                 conn.commit()
 
 
+def _migrate_document_file_columns():
+    """Add file_content and original_filename to documents if missing (persist uploads in DB)."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            r = conn.execute(text("PRAGMA table_info(documents)"))
+            cols = {row[1] for row in r.fetchall()}
+            if "file_content" not in cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN file_content BLOB"))
+                conn.commit()
+            if "original_filename" not in cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN original_filename VARCHAR"))
+                conn.commit()
+        else:
+            # PostgreSQL
+            conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_content BYTEA"))
+            conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS original_filename VARCHAR"))
+            conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
     _migrate_portfolio_factors()
+    _migrate_document_file_columns()

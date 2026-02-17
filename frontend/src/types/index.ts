@@ -28,6 +28,7 @@ export interface Document {
   type: "deck" | "call_notes" | "website" | "other";
   status: "processing" | "ready" | "error";
   url: string | null;
+  original_filename: string | null;
   created_at: string;
 }
 

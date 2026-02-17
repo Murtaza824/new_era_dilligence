@@ -143,6 +143,36 @@ export const documents = {
     }
     return res.json();
   },
+
+  /** Download the original file (e.g. PDF). Triggers a file save in the browser. */
+  downloadFile: async (
+    companyId: string,
+    documentId: string,
+    filename?: string,
+  ): Promise<void> => {
+    const token = getToken();
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(
+      `${BASE}/companies/${companyId}/documents/${documentId}/file`,
+      { headers },
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? `Download failed ${res.status}`);
+    }
+    const blob = await res.blob();
+    const name =
+      filename ||
+      res.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1] ||
+      "document.pdf";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 // ── Memos ────────────────────────────────────────────────────────────────

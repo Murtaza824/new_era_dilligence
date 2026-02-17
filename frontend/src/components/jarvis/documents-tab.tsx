@@ -10,6 +10,7 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +32,7 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
     "none" | "file" | "notes" | "website"
   >("none");
   const [uploading, setUploading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Form state
   const [notesText, setNotesText] = useState("");
@@ -83,6 +85,22 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
       toast.error("Failed to save call notes");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDownload = async (doc: Document) => {
+    setDownloadingId(doc.id);
+    try {
+      await docsApi.downloadFile(
+        companyId,
+        doc.id,
+        doc.original_filename ?? undefined,
+      );
+      toast.success("Download started");
+    } catch {
+      toast.error("File not available for download");
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -276,7 +294,9 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
               <div className="flex items-center gap-3">
                 <span className="text-muted-foreground">{typeIcon(doc.type)}</span>
                 <div>
-                  <p className="text-sm font-medium capitalize">{doc.type.replace("_", " ")}</p>
+                  <p className="text-sm font-medium capitalize">
+                    {doc.original_filename || doc.type.replace("_", " ")}
+                  </p>
                   {doc.url && (
                     <p className="text-muted-foreground max-w-xs truncate text-xs">
                       {doc.url}
@@ -289,6 +309,20 @@ export function DocumentsTab({ companyId, onDocumentsChanged }: Props) {
                 <span className="text-muted-foreground text-xs">
                   {new Date(doc.created_at).toLocaleDateString()}
                 </span>
+                {doc.type === "deck" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDownload(doc)}
+                    disabled={downloadingId === doc.id}
+                  >
+                    {downloadingId === doc.id ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Download className="size-4" />
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           ))}

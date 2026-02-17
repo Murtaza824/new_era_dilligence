@@ -14,6 +14,7 @@ class DocumentOut(BaseModel):
     type: str
     status: str
     url: str | None = None
+    original_filename: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

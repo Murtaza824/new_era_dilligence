@@ -1,8 +1,10 @@
 """Document upload and ingestion router."""
 import os
+import tempfile
 import uuid
 import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -19,9 +21,6 @@ router = APIRouter(
     tags=["documents"],
     dependencies=[Depends(get_current_user)],
 )
-
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @router.post("", response_model=DocumentOut)
@@ -53,9 +52,11 @@ def upload_document_json(
         doc.status = "ready"
         db.commit()
 
-        # Index into RAG
-        index_document(company_id, doc.id, text)
-
+        # Index into RAG (non-fatal: doc stays "ready" if indexing fails)
+        try:
+            index_document(company_id, doc.id, text)
+        except Exception as e:
+            logger.warning("RAG indexing failed (doc still ready): %s", e)
     except Exception as e:
         logger.error(f"Document processing failed: {e}")
         doc.status = "error"
@@ -72,39 +73,47 @@ def upload_document_file(
     doc_type: str = Form("deck"),
     db: Session = Depends(get_db),
 ):
-    """Upload a file (PDF deck)."""
+    """Upload a file (PDF deck). File bytes are stored in the DB so they persist and can be downloaded from any device."""
     _check_company(company_id, db)
 
-    # Save file to disk
-    ext = os.path.splitext(file.filename or "upload.pdf")[1]
-    filename = f"{uuid.uuid4()}{ext}"
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    with open(file_path, "wb") as f:
-        f.write(file.file.read())
+    file_bytes = file.file.read()
+    original_filename = (file.filename or "upload.pdf").strip() or "upload.pdf"
 
     doc = Document(
         company_id=company_id,
         type=doc_type,
-        storage_path=file_path,
+        original_filename=original_filename,
+        file_content=file_bytes,
         status="processing",
     )
     db.add(doc)
     db.commit()
     db.refresh(doc)
 
+    file_path = None
     try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(original_filename)[1]) as tmp:
+            tmp.write(file_bytes)
+            file_path = tmp.name
         text = extract_document(doc_type=doc_type, file_path=file_path)
         doc.extracted_text = text
         doc.status = "ready"
         db.commit()
 
-        # Index into RAG
-        index_document(company_id, doc.id, text)
-
+        try:
+            index_document(company_id, doc.id, text)
+        except Exception as e:
+            logger.warning("RAG indexing failed (doc still ready): %s", e)
     except Exception as e:
         logger.error(f"File processing failed: {e}")
         doc.status = "error"
         db.commit()
+    finally:
+        if file_path and os.path.isfile(file_path):
+            try:
+                os.unlink(file_path)
+            except OSError:
+                pass
 
     db.refresh(doc)
     return doc
@@ -120,6 +129,33 @@ def list_documents(company_id: str, db: Session = Depends(get_db)):
         .all()
     )
     return docs
+
+
+@router.get("/{document_id}/file")
+def download_document_file(
+    company_id: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+):
+    """Download the original file (e.g. PDF). Available to any logged-in user who can access the company."""
+    _check_company(company_id, db)
+    doc = db.query(Document).filter(
+        Document.id == document_id,
+        Document.company_id == company_id,
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.file_content:
+        raise HTTPException(status_code=404, detail="File not stored (legacy upload)")
+    filename = doc.original_filename or "document.pdf"
+    media_type = "application/pdf" if filename.lower().endswith(".pdf") else "application/octet-stream"
+    return Response(
+        content=bytes(doc.file_content),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 
 
 def _check_company(company_id: str, db: Session):
