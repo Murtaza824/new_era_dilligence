@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { Building2, Briefcase, LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
 
+import { Building2, Briefcase, LogOut, PanelRightOpen, Users } from "lucide-react";
+
+import { AgentActivityPanel } from "@/components/jarvis/agent-activity-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
@@ -13,11 +16,19 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { label: "Companies", href: "/companies", icon: Building2 },
   { label: "Portfolio", href: "/portfolio", icon: Briefcase },
+  { label: "Network", href: "/network", icon: Users },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, loading, logout } = useAuth();
+  const [activityPanelOpen, setActivityPanelOpen] = useState(false);
+
+  useEffect(() => {
+    const open = () => setActivityPanelOpen(true);
+    window.addEventListener("jarvis-open-activity", open);
+    return () => window.removeEventListener("jarvis-open-activity", open);
+  }, []);
 
   return (
     <div className="min-h-screen">
@@ -62,6 +73,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
+            {user && (
+              <Button
+                variant={activityPanelOpen ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setActivityPanelOpen((o) => !o)}
+                className="text-muted-foreground gap-1.5"
+                title="Agent activity"
+              >
+                <PanelRightOpen className="size-4" />
+                Activity
+              </Button>
+            )}
             {!loading && !user && pathname !== "/login" && (
               <Link href="/login">
                 <Button variant="outline" size="sm">
@@ -85,8 +108,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Page content - pt-14 so content is not hidden under fixed header */}
-      <main className="pt-14">{children}</main>
+      {/* Page content + optional activity panel */}
+      <div className="flex pt-14">
+        <main className="min-w-0 flex-1">{children}</main>
+        {user && activityPanelOpen && (
+          <div className="h-[calc(100vh-3.5rem)] shrink-0">
+            <AgentActivityPanel
+              isOpen={true}
+              onClose={() => setActivityPanelOpen(false)}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

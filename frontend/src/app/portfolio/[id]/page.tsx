@@ -18,8 +18,11 @@ import {
   Sparkles,
   TrendingUp,
   Send,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
+
+import { overviewAsParagraph, parseFoundersFromTeamContent } from "@/lib/memo-overview";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -215,8 +218,10 @@ export default function PortfolioDetailPage() {
             )}
             <span>Check: {fmt$(entry.investment_size)}</span>
             <span>Entry: {fmt$(entry.entry_valuation)}</span>
-            {entry.ownership_pct != null && (
-              <span>Own: {entry.ownership_pct.toFixed(2)}%</span>
+            {entry.effective_ownership_pct != null && (
+              <span title={entry.ownership_pct == null ? "Calculated from check size ÷ entry valuation" : undefined}>
+                Own: {entry.effective_ownership_pct.toFixed(2)}%{entry.ownership_pct == null ? " (calc)" : ""}
+              </span>
             )}
             {entry.investment_date && <span>Date: {entry.investment_date}</span>}
           </div>
@@ -230,6 +235,70 @@ export default function PortfolioDetailPage() {
           </Link>
         )}
       </div>
+
+      {/* Overview & Team (from linked company memo when available) */}
+      {memo?.sections?.length ? (
+        <div className="mb-8 space-y-6">
+          {memo.sections.find((s) => s.title === "Company Overview")?.content?.trim() && (
+            <div className="rounded-xl border bg-card p-6">
+              <h2 className="font-display mb-4 text-lg font-semibold">
+                Company Overview
+              </h2>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                {overviewAsParagraph(
+                  memo.sections.find((s) => s.title === "Company Overview")!.content,
+                )}
+              </p>
+            </div>
+          )}
+          {(() => {
+            const teamSection = memo.sections.find((s) => s.title === "Team & Leadership");
+            const founders = teamSection ? parseFoundersFromTeamContent(teamSection.content) : [];
+            if (founders.length === 0) return null;
+            return (
+              <div className="rounded-xl border bg-card p-6">
+                <h2 className="font-display mb-4 text-lg font-semibold">
+                  Founders
+                </h2>
+                <ul className="space-y-3">
+                  {founders.map((f) => (
+                    <li key={f.name} className="flex items-center gap-3">
+                      <img
+                        src={`https://ui-avatars.com/api?name=${encodeURIComponent(f.name)}&size=40&background=random`}
+                        alt=""
+                        className="size-10 shrink-0 rounded-full object-cover"
+                      />
+                      {f.linkedInUrl ? (
+                        <a
+                          href={f.linkedInUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 font-medium text-blue-600 hover:underline dark:text-blue-400"
+                        >
+                          {f.name}
+                          <ExternalLink className="size-3.5 shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="font-medium">{f.name}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })()}
+        </div>
+      ) : entry.company_id ? (
+        <div className="text-muted-foreground mb-8 rounded-xl border border-dashed bg-muted/30 p-6 text-center text-sm">
+          No overview yet.{" "}
+          <Link
+            href={`/companies/${entry.company_id}`}
+            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+          >
+            Link to company & generate memo
+          </Link>
+        </div>
+      ) : null}
 
       {/* Grid: Left = memo + sim, Right = updates */}
       <div className="grid gap-6 lg:grid-cols-3">

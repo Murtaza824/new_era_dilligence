@@ -3,30 +3,52 @@
 import { useCallback, useEffect, useState } from "react";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { ArrowLeft, Briefcase, Loader2 } from "lucide-react";
+import { ArrowLeft, Briefcase, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
+import { CompanyLogo } from "@/components/company-logo";
+import { DealTermsTab } from "@/components/jarvis/deal-terms-tab";
 import { DocumentsTab } from "@/components/jarvis/documents-tab";
 import { MemoTab } from "@/components/jarvis/memo-tab";
+import { OverviewTab } from "@/components/jarvis/overview-tab";
 import { SimulationTab } from "@/components/jarvis/simulation-tab";
 import { Button } from "@/components/ui/button";
 import { companies as companiesApi, portfolioApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Company } from "@/types";
 
-type Tab = "documents" | "memo" | "simulations";
+type Tab = "overview" | "deal" | "documents" | "memo" | "simulations";
+
+const TAB_LABELS: Record<Tab, string> = {
+  overview: "Overview",
+  deal: "Deal Terms",
+  documents: "Documents",
+  memo: "Memo",
+  simulations: "Simulations",
+};
+
+const VALID_TABS: Tab[] = ["overview", "deal", "documents", "memo", "simulations"];
 
 export default function CompanyDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const companyId = params.id as string;
 
+  const tabFromUrl = searchParams.get("tab");
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>("documents");
+  const [tab, setTab] = useState<Tab>("overview");
   const [addingToPortfolio, setAddingToPortfolio] = useState(false);
+  const [refreshingLogo, setRefreshingLogo] = useState(false);
+
+  useEffect(() => {
+    if (tabFromUrl && VALID_TABS.includes(tabFromUrl as Tab)) {
+      setTab(tabFromUrl as Tab);
+    }
+  }, [tabFromUrl]);
 
   const refreshCompany = useCallback(() => {
     companiesApi.get(companyId).then(setCompany).catch(() => {});
@@ -81,16 +103,47 @@ export default function CompanyDetailPage() {
 
       {/* Header */}
       <div className="mb-8 flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">
-            {company.name}
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {company.document_count} document{company.document_count !== 1 ? "s" : ""} uploaded
-            {company.has_memo && " · Memo generated"}
-          </p>
+        <div className="flex items-start gap-4">
+          <CompanyLogo name={company.name} logoUrl={company.logo_url ?? null} size="lg" />
+          <div>
+            <h1 className="font-display text-3xl font-semibold tracking-tight">
+              {company.name}
+            </h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {company.document_count} document{company.document_count !== 1 ? "s" : ""} uploaded
+              {company.has_memo && " · Memo generated"}
+              {(company.investment_stage || company.entry_valuation != null || company.amount_raising != null) && (
+                <>
+                  {" · "}
+                  {[company.investment_stage, company.entry_valuation != null && `$${(company.entry_valuation / 1e6).toFixed(1)}M val`, company.amount_raising != null && `$${(company.amount_raising / 1e6).toFixed(1)}M raising`].filter(Boolean).join(" · ")}
+                </>
+              )}
+            </p>
+          </div>
         </div>
-        <Button
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={refreshingLogo}
+            onClick={async () => {
+              setRefreshingLogo(true);
+              try {
+                const updated = await companiesApi.refreshLogo(companyId);
+                setCompany(updated);
+                toast.success(updated.logo_url ? "Logo updated" : "No logo found for website");
+              } catch (e: unknown) {
+                toast.error(e instanceof Error ? e.message : "Failed to refresh logo");
+              } finally {
+                setRefreshingLogo(false);
+              }
+            }}
+            title="Re-resolve logo from latest website document"
+          >
+            {refreshingLogo ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+            Refresh logo
+          </Button>
+          <Button
           variant="outline"
           size="sm"
           disabled={addingToPortfolio}
@@ -114,27 +167,39 @@ export default function CompanyDetailPage() {
           )}
           Add to Portfolio
         </Button>
+        </div>
       </div>
 
       {/* Tab navigation */}
       <div className="mb-6 flex gap-1 rounded-lg border bg-muted p-1">
-        {(["documents", "memo", "simulations"] as Tab[]).map((t) => (
+        {(["overview", "deal", "documents", "memo", "simulations"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              "rounded-md px-4 py-2 text-sm font-medium transition-colors capitalize",
+              "rounded-md px-4 py-2 text-sm font-medium transition-colors",
               tab === t
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {t}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
 
       {/* Tab content */}
+      {tab === "overview" && (
+        <OverviewTab
+          companyId={companyId}
+          companyName={company.name}
+          onMemoGenerated={refreshCompany}
+          setActiveTab={setTab}
+        />
+      )}
+      {tab === "deal" && (
+        <DealTermsTab key={company.updated_at} companyId={companyId} company={company} onSaved={setCompany} />
+      )}
       {tab === "documents" && <DocumentsTab companyId={companyId} onDocumentsChanged={refreshCompany} />}
       {tab === "memo" && <MemoTab companyId={companyId} companyName={company.name} onMemoGenerated={refreshCompany} />}
       {tab === "simulations" && <SimulationTab companyId={companyId} companyName={company.name} />}

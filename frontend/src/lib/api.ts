@@ -1,7 +1,7 @@
 /**
  * Typed API client for the Jarvis backend.
  */
-import type { Company, Document, Memo, SimulationRun, SimulationSuggestion, PortfolioSnapshot, PortfolioUpdateEntry, PortfolioSimulationLatest, PortfolioSimulationOutputs, User, TokenResponse } from "@/types";
+import type { AgentJob, Company, Document, IntroductionSuggestion, Memo, NetworkContact, SimulationRun, SimulationSuggestion, PortfolioSnapshot, PortfolioUpdateEntry, PortfolioSimulationLatest, PortfolioSimulationOutputs, User, TokenResponse, DealSuggestions } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "jarvis_token";
@@ -21,6 +21,15 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+function apiErrorMessage(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0] as { msg?: string; loc?: unknown[] };
+    return first.msg ?? JSON.stringify(first);
+  }
+  return fallback;
+}
+
 async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   const token = getToken();
   const headers: HeadersInit = {
@@ -36,7 +45,7 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `API error ${res.status}`);
+    throw new Error(apiErrorMessage(body.detail, `API error ${res.status}`));
   }
   return res.json();
 }
@@ -128,6 +137,31 @@ async function authRequest<T>(path: string, opts?: RequestInit): Promise<T> {
   }
 }
 
+/** POST that may return 202 Accepted with { job_id, message }. Does not throw on 202. */
+async function requestPostAccept202(path: string): Promise<{ job_id: string; message: string }> {
+  const token = getToken();
+  const headers: HeadersInit = { "Content-Type": "application/json" };
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${BASE}${path}`, { method: "POST", headers });
+  if (res.status === 202) {
+    return res.json();
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? `API error ${res.status}`);
+  }
+  return res.json();
+}
+
+// ── Activity ────────────────────────────────────────────────────────────
+
+export const activity = {
+  list: () => request<AgentJob[]>("/activity"),
+  getJob: (jobId: string) => request<AgentJob>(`/activity/jobs/${jobId}`),
+};
+
 // ── Auth ────────────────────────────────────────────────────────────────
 
 export const authApi = {
@@ -147,11 +181,26 @@ export const companies = {
 
   get: (id: string) => request<Company>(`/companies/${id}`),
 
-  create: (name: string) =>
+  create: (body: { name: string; website?: string }) =>
     request<Company>("/companies", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(body),
     }),
+
+  update: (id: string, body: Partial<Pick<Company, "name" | "logo_url" | "entry_valuation" | "amount_raising" | "investment_stage">>) =>
+    request<Company>(`/companies/update/${id}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  refreshLogo: (id: string) =>
+    request<Company>(`/companies/${id}/refresh-logo`, { method: "POST" }),
+
+  suggestDealFromDocuments: (id: string) =>
+    request<DealSuggestions>(`/companies/${id}/deal-suggestions/from-documents`, { method: "POST" }),
+
+  suggestDealFromWeb: (id: string) =>
+    request<DealSuggestions>(`/companies/${id}/deal-suggestions/from-web`, { method: "POST" }),
 
   delete: (id: string) =>
     request<{ ok: boolean }>(`/companies/${id}`, { method: "DELETE" }),
@@ -236,11 +285,13 @@ export const documents = {
 export const memos = {
   get: (companyId: string) => request<Memo>(`/companies/${companyId}/memo`),
 
+  /** Starts memo generation in the background. Returns job_id (202). */
   generate: (companyId: string) =>
-    requestLong<Memo>(`/companies/${companyId}/memo/generate`, { method: "POST" }),
+    requestPostAccept202(`/companies/${companyId}/memo/generate`),
 
+  /** Starts memo revision in the background. Returns job_id (202). */
   revise: (companyId: string) =>
-    requestLong<Memo>(`/companies/${companyId}/memo/revise`, { method: "POST" }),
+    requestPostAccept202(`/companies/${companyId}/memo/revise`),
 
   refineSection: (companyId: string, sectionTitle: string, instructions: string) =>
     request<Memo>(`/companies/${companyId}/memo/section/refine`, {
@@ -281,6 +332,76 @@ export const simulations = {
 
   suggest: (companyId: string) =>
     request<SimulationSuggestion>(`/companies/${companyId}/simulations/suggest`),
+};
+
+// ── Network ──────────────────────────────────────────────────────────────
+
+export interface RelationshipManager {
+  id: string;
+  email: string;
+}
+
+export const networkApi = {
+  getRelationshipManagers: () =>
+    request<RelationshipManager[]>("/network/relationship-managers"),
+  contacts: {
+    list: (params?: { q?: string; tags?: string; added_by?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.q) sp.set("q", params.q);
+      if (params?.tags) sp.set("tags", params.tags);
+      if (params?.added_by) sp.set("added_by", params.added_by);
+      const query = sp.toString();
+      return request<NetworkContact[]>(`/network/contacts${query ? `?${query}` : ""}`);
+    },
+    get: (id: string) => request<NetworkContact>(`/network/contacts/${id}`),
+    create: (body: { name: string; email?: string; phone_number?: string; location?: string; company_name?: string; role_or_title?: string; linkedin_url?: string; skills?: string; notes?: string; tags?: string; nev_fund_i_lp?: boolean; nev_syndicate_lp?: boolean; added_by_user_id?: string }) =>
+      request<NetworkContact>("/network/contacts", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Partial<Pick<NetworkContact, "name" | "email" | "phone_number" | "location" | "company_name" | "role_or_title" | "linkedin_url" | "skills" | "notes" | "tags">>) =>
+      request<NetworkContact>(`/network/contacts/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<{ ok: boolean }>(`/network/contacts/${id}`, { method: "DELETE" }),
+    /** Import contacts from CSV. Returns imported count, skipped, and any row errors. */
+    importCsv: async (file: File): Promise<{ imported: number; skipped: number; errors: string[] }> => {
+      const token = getToken();
+      const form = new FormData();
+      form.append("file", file);
+      const headers: HeadersInit = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`${BASE}/network/contacts/import`, {
+        method: "POST",
+        headers,
+        body: form,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(apiErrorMessage(body.detail, `Import failed ${res.status}`));
+      }
+      return res.json();
+    },
+  },
+  suggestions: {
+    list: (params?: { status?: string; contact_id?: string; company_id?: string; portfolio_id?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.status) sp.set("status", params.status);
+      if (params?.contact_id) sp.set("contact_id", params.contact_id);
+      if (params?.company_id) sp.set("company_id", params.company_id);
+      if (params?.portfolio_id) sp.set("portfolio_id", params.portfolio_id);
+      const query = sp.toString();
+      return request<IntroductionSuggestion[]>(`/network/suggestions${query ? `?${query}` : ""}`);
+    },
+    get: (id: string) => request<IntroductionSuggestion>(`/network/suggestions/${id}`),
+    updateStatus: (id: string, status: "introduced" | "dismissed") =>
+      request<IntroductionSuggestion>(`/network/suggestions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+  },
 };
 
 // ── Portfolio ────────────────────────────────────────────────────────────

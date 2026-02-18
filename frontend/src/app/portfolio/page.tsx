@@ -475,8 +475,10 @@ export default function PortfolioPage() {
                     <td className="px-4 py-3 text-right font-mono text-xs">
                       {fmt$(r.last_valuation)}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-xs">
-                      {r.ownership_pct != null ? `${r.ownership_pct.toFixed(2)}%` : "—"}
+                    <td className="px-4 py-3 text-right font-mono text-xs" title={r.ownership_pct == null && r.effective_ownership_pct != null ? "Calculated from check size ÷ entry valuation" : undefined}>
+                      {r.effective_ownership_pct != null
+                        ? `${r.effective_ownership_pct.toFixed(2)}%${r.ownership_pct == null ? " (calc)" : ""}`
+                        : "—"}
                     </td>
                     <td className="text-muted-foreground px-4 py-3 text-xs">
                       {r.investment_date ?? "—"}

@@ -23,7 +23,7 @@ def generate_memo(company_id: str, company_name: str) -> dict:
     # Step 1: Generate each section
     sections = []
     for section_def in SECTIONS:
-        result = generate_section(company_id, section_def)
+        result = generate_section(company_id, section_def, company_name=company_name)
         sections.append(result)
 
     # Step 2: Assemble raw memo

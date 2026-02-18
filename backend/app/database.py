@@ -57,6 +57,41 @@ def _migrate_portfolio_factors():
                 conn.commit()
 
 
+def _migrate_company_logo():
+    """Add logo_url and website to companies if missing."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            r = conn.execute(text("PRAGMA table_info(companies)"))
+            cols = {row[1] for row in r.fetchall()}
+            if "logo_url" not in cols:
+                conn.execute(text("ALTER TABLE companies ADD COLUMN logo_url VARCHAR"))
+                conn.commit()
+            if "website" not in cols:
+                conn.execute(text("ALTER TABLE companies ADD COLUMN website VARCHAR"))
+                conn.commit()
+        else:
+            conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS logo_url VARCHAR"))
+            conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS website VARCHAR"))
+            conn.commit()
+
+
+def _migrate_company_deal_fields():
+    """Add deal fields to companies if missing."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            r = conn.execute(text("PRAGMA table_info(companies)"))
+            cols = {row[1] for row in r.fetchall()}
+            for col, typ in [("entry_valuation", "FLOAT"), ("amount_raising", "FLOAT"), ("investment_stage", "VARCHAR")]:
+                if col not in cols:
+                    conn.execute(text(f"ALTER TABLE companies ADD COLUMN {col} {typ}"))
+                    conn.commit()
+        else:
+            conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS entry_valuation FLOAT"))
+            conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS amount_raising FLOAT"))
+            conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS investment_stage VARCHAR"))
+            conn.commit()
+
+
 def _migrate_document_file_columns():
     """Add file_content and original_filename to documents if missing (persist uploads in DB)."""
     with engine.connect() as conn:
@@ -76,8 +111,51 @@ def _migrate_document_file_columns():
             conn.commit()
 
 
+def _migrate_network_contact_lp_columns():
+    """Add NEV Fund I / Syndicate LP columns to network_contacts if missing."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(network_contacts)"))
+            except Exception:
+                return  # table may not exist yet
+            cols = {row[1] for row in r.fetchall()}
+            for col, typ in [("nev_fund_i_lp", "BOOLEAN"), ("nev_syndicate_lp", "BOOLEAN")]:
+                if col not in cols:
+                    conn.execute(text(f"ALTER TABLE network_contacts ADD COLUMN {col} {typ} DEFAULT 0"))
+                    conn.commit()
+        else:
+            conn.execute(text("ALTER TABLE network_contacts ADD COLUMN IF NOT EXISTS nev_fund_i_lp BOOLEAN DEFAULT FALSE"))
+            conn.execute(text("ALTER TABLE network_contacts ADD COLUMN IF NOT EXISTS nev_syndicate_lp BOOLEAN DEFAULT FALSE"))
+            conn.commit()
+
+
+def _migrate_network_contact_extra_columns():
+    """Add phone_number, location, skills to network_contacts if missing."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(network_contacts)"))
+            except Exception:
+                return
+            cols = {row[1] for row in r.fetchall()}
+            for col in ("phone_number", "location", "skills"):
+                if col not in cols:
+                    conn.execute(text(f"ALTER TABLE network_contacts ADD COLUMN {col} VARCHAR"))
+                    conn.commit()
+        else:
+            conn.execute(text("ALTER TABLE network_contacts ADD COLUMN IF NOT EXISTS phone_number VARCHAR"))
+            conn.execute(text("ALTER TABLE network_contacts ADD COLUMN IF NOT EXISTS location VARCHAR"))
+            conn.execute(text("ALTER TABLE network_contacts ADD COLUMN IF NOT EXISTS skills VARCHAR"))
+            conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
     _migrate_portfolio_factors()
+    _migrate_company_logo()
+    _migrate_company_deal_fields()
     _migrate_document_file_columns()
+    _migrate_network_contact_lp_columns()
+    _migrate_network_contact_extra_columns()

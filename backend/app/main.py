@@ -14,8 +14,8 @@ from fastapi.responses import JSONResponse
 
 from app.auth import hash_password
 from app.database import SessionLocal, init_db
-from app.models.user import User
-from app.routers import auth, companies, documents, memos, portfolio, simulations
+from app.models import AgentJob, ContactIntroductionSuggestion, NetworkContact, User  # import so create_all creates tables
+from app.routers import activity, auth, companies, documents, memos, network, portfolio, simulations
 
 logger = logging.getLogger("jarvis")
 
@@ -69,10 +69,12 @@ app.add_middleware(
 )
 
 # Register routers (auth is public; rest require admin)
+app.include_router(activity.router)
 app.include_router(auth.router)
 app.include_router(companies.router)
 app.include_router(documents.router)
 app.include_router(memos.router)
+app.include_router(network.router)
 app.include_router(portfolio.router)
 app.include_router(simulations.router)
 

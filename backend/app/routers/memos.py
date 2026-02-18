@@ -1,12 +1,15 @@
 """Memo generation, retrieval, revision, and export router."""
 import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import PlainTextResponse
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
-from app.database import get_db
+from app.database import SessionLocal, get_db
+from app.models.agent_job import AgentJob
 from app.models.company import Company
 from app.models.document import Document
 from app.models.memo import Memo, MemoRevision
@@ -23,12 +26,69 @@ router = APIRouter(
 )
 
 
-@router.post("/generate", response_model=MemoOut)
-def generate(company_id: str, db: Session = Depends(get_db)):
-    """Generate a full investment memo from uploaded documents."""
+def _run_memo_generation_background(job_id: str):
+    """Background task: run memo generation and update job status."""
+    db = SessionLocal()
+    try:
+        job = db.query(AgentJob).filter(AgentJob.id == job_id).first()
+        if not job or job.status != "pending":
+            return
+        job.status = "running"
+        db.commit()
+
+        company = db.query(Company).filter(Company.id == job.entity_id).first()
+        if not company:
+            job.status = "failed"
+            job.error = "Company not found"
+            job.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            return
+
+        result = generate_memo(job.entity_id, company.name)
+
+        existing = (
+            db.query(Memo)
+            .filter(Memo.company_id == job.entity_id)
+            .order_by(Memo.version.desc())
+            .first()
+        )
+        next_version = (existing.version + 1) if existing else 1
+        memo = Memo(
+            company_id=job.entity_id,
+            version=next_version,
+            content=result["content"],
+            sections_json=json.dumps(result["sections"]),
+        )
+        db.add(memo)
+        db.commit()
+        db.refresh(memo)
+        revision = MemoRevision(memo_id=memo.id, content=result["content"])
+        db.add(revision)
+        db.commit()
+
+        job.status = "completed"
+        job.completed_at = datetime.now(timezone.utc)
+        db.commit()
+    except Exception as e:
+        logger.exception("Memo generation failed for job %s", job_id)
+        try:
+            job = db.query(AgentJob).filter(AgentJob.id == job_id).first()
+            if job:
+                job.status = "failed"
+                job.error = str(e)[:2000]
+                job.completed_at = datetime.now(timezone.utc)
+                db.commit()
+        except Exception:
+            db.rollback()
+    finally:
+        db.close()
+
+
+@router.post("/generate")
+def generate(company_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Start memo generation in the background. Returns 202 with job_id."""
     company = _get_company(company_id, db)
 
-    # Check that documents exist
     doc_count = db.query(Document).filter(
         Document.company_id == company_id,
         Document.status == "ready",
@@ -39,38 +99,22 @@ def generate(company_id: str, db: Session = Depends(get_db)):
             detail="No documents available. Upload at least one document before generating a memo.",
         )
 
-    # Get current version
-    existing = (
-        db.query(Memo)
-        .filter(Memo.company_id == company_id)
-        .order_by(Memo.version.desc())
-        .first()
+    job = AgentJob(
+        type="memo_generate",
+        entity_type="company",
+        entity_id=company_id,
+        status="pending",
     )
-    next_version = (existing.version + 1) if existing else 1
-
-    # Generate memo via agents
-    result = generate_memo(company_id, company.name)
-
-    # Save to DB
-    memo = Memo(
-        company_id=company_id,
-        version=next_version,
-        content=result["content"],
-        sections_json=json.dumps(result["sections"]),
-    )
-    db.add(memo)
+    db.add(job)
     db.commit()
-    db.refresh(memo)
+    db.refresh(job)
 
-    # Save revision audit trail
-    revision = MemoRevision(
-        memo_id=memo.id,
-        content=result["content"],
+    background_tasks.add_task(_run_memo_generation_background, job.id)
+
+    return JSONResponse(
+        status_code=202,
+        content={"job_id": job.id, "message": "Memo generation started"},
     )
-    db.add(revision)
-    db.commit()
-
-    return _to_memo_out(memo)
 
 
 @router.get("", response_model=MemoOut)
@@ -88,11 +132,10 @@ def get_latest_memo(company_id: str, db: Session = Depends(get_db)):
     return _to_memo_out(memo)
 
 
-@router.post("/revise", response_model=MemoOut)
-def revise_memo(company_id: str, db: Session = Depends(get_db)):
-    """Re-generate the memo with any new documents. Creates a new version."""
-    # Same as generate — it picks up all current documents from the RAG store
-    return generate(company_id, db)
+@router.post("/revise")
+def revise_memo(company_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Re-generate the memo with any new documents. Creates a new version. Returns 202 with job_id."""
+    return generate(company_id, background_tasks, db)
 
 
 @router.get("/export")
@@ -221,18 +264,15 @@ def regenerate_memo_section(
     if not section_def:
         raise HTTPException(status_code=400, detail=f"Unknown section: {body.section_title}")
 
-    # If instructions provided, append them to the section prompt
+    company = _get_company(company_id, db)
     if body.instructions:
         modified_def = {**section_def, "prompt": section_def["prompt"] + f"\n\nAdditional guidance: {body.instructions}"}
-        result = generate_section(company_id, modified_def)
+        result = generate_section(company_id, modified_def, company_name=company.name)
     else:
-        result = generate_section(company_id, section_def)
+        result = generate_section(company_id, section_def, company_name=company.name)
 
-    # Update the section
     sections[section_idx] = result
 
-    # Rebuild full content
-    company = _get_company(company_id, db)
     full_parts = [f"# Investment Memo: {company.name}\n"]
     for s in sections:
         full_parts.append(f"## {s['title']}\n\n{s['content']}")

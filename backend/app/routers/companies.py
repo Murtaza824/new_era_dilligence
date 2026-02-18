@@ -12,7 +12,7 @@ from app.models.document import Document
 from app.models.memo import Memo
 from app.models.simulation import SimulationRun
 from app.models.portfolio import PortfolioSnapshot
-from app.schemas.company import CompanyCreate, CompanyOut
+from app.schemas.company import CompanyCreate, CompanyOut, CompanyUpdate, DealSuggestions
 from app.schemas.portfolio import PortfolioSnapshotOut
 
 logger = logging.getLogger(__name__)
@@ -25,10 +25,25 @@ router = APIRouter(
 
 @router.post("", response_model=CompanyOut)
 def create_company(body: CompanyCreate, db: Session = Depends(get_db)):
-    company = Company(name=body.name)
+    company = Company(name=body.name, website=body.website)
     db.add(company)
     db.commit()
     db.refresh(company)
+    if body.website and body.website.strip():
+        try:
+            from app.services.logo import resolve_logo_url
+            logo_url = resolve_logo_url(body.website.strip())
+            if logo_url:
+                company.logo_url = logo_url
+                db.commit()
+                db.refresh(company)
+        except Exception as e:
+            logger.warning("Logo resolution on company create failed: %s", e)
+    try:
+        from app.services.matchmaking import run_matchmaking_for_new_company
+        run_matchmaking_for_new_company(company.id, db, trigger="company_created")
+    except Exception as e:
+        logger.warning("Matchmaking after company create failed: %s", e)
     return _enrich(company, db)
 
 
@@ -36,6 +51,16 @@ def create_company(body: CompanyCreate, db: Session = Depends(get_db)):
 def list_companies(db: Session = Depends(get_db)):
     companies = db.query(Company).order_by(Company.created_at.desc()).all()
     return [_enrich(c, db) for c in companies]
+
+
+@router.post("/update/{company_id}", response_model=CompanyOut)
+def update_company_post(
+    company_id: str,
+    body: CompanyUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update company (POST). Used by Deal Terms and other clients."""
+    return _do_update_company(company_id, body, db)
 
 
 @router.get("/{company_id}", response_model=CompanyOut)
@@ -104,7 +129,105 @@ def add_to_portfolio(company_id: str, db: Session = Depends(get_db)):
     db.add(snap)
     db.commit()
     db.refresh(snap)
+    try:
+        from app.services.matchmaking import run_matchmaking_for_portfolio_added
+        run_matchmaking_for_portfolio_added(snap.id, db, trigger="portfolio_added")
+    except Exception as e:
+        logger.warning("Matchmaking after portfolio add failed: %s", e)
     return snap
+
+
+def _do_update_company(company_id: str, body: CompanyUpdate, db: Session) -> dict:
+    """Shared logic for PATCH and POST update."""
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(company, field, value)
+    db.commit()
+    db.refresh(company)
+    return _enrich(company, db)
+
+
+@router.patch("/{company_id}", response_model=CompanyOut)
+def update_company(
+    company_id: str,
+    body: CompanyUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update company fields (e.g. name, logo_url, deal terms)."""
+    return _do_update_company(company_id, body, db)
+
+
+@router.post("/{company_id}/deal-suggestions/from-documents", response_model=DealSuggestions)
+def suggest_deal_from_documents(company_id: str, db: Session = Depends(get_db)):
+    """Use RAG + LLM to extract suggested deal fields from the company's documents."""
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    from app.agents.deal_extractor import suggest_from_documents
+    result = suggest_from_documents(company_id)
+    return DealSuggestions(**result)
+
+
+@router.post("/{company_id}/deal-suggestions/from-web", response_model=DealSuggestions)
+def suggest_deal_from_web(company_id: str, db: Session = Depends(get_db)):
+    """Fetch the company's website (from latest website doc) and extract deal suggestions from the page."""
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    latest_website = (
+        db.query(Document)
+        .filter(Document.company_id == company_id, Document.type == "website", Document.url.isnot(None))
+        .order_by(Document.created_at.desc())
+        .first()
+    )
+    if not latest_website or not latest_website.url:
+        return DealSuggestions(entry_valuation=None, amount_raising=None, investment_stage=None)
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+        resp = httpx.get(latest_website.url, follow_redirects=True, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n", strip=True)
+    except Exception as e:
+        logger.warning("Failed to fetch website for deal suggestions: %s", e)
+        return DealSuggestions(entry_valuation=None, amount_raising=None, investment_stage=None)
+    from app.agents.deal_extractor import suggest_from_web_page
+    result = suggest_from_web_page(text, company.name)
+    return DealSuggestions(**result)
+
+
+@router.post("/{company_id}/refresh-logo", response_model=CompanyOut)
+def refresh_company_logo(company_id: str, db: Session = Depends(get_db)):
+    """Re-resolve logo from the company's website or latest website document URL."""
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    url_to_use = None
+    if company.website and company.website.strip():
+        url_to_use = company.website.strip()
+    if not url_to_use:
+        latest_website = (
+            db.query(Document)
+            .filter(Document.company_id == company_id, Document.type == "website", Document.url.isnot(None))
+            .order_by(Document.created_at.desc())
+            .first()
+        )
+        if latest_website and latest_website.url:
+            url_to_use = latest_website.url
+    if not url_to_use:
+        return _enrich(company, db)
+    from app.services.logo import resolve_logo_url
+    logo_url = resolve_logo_url(url_to_use)
+    if logo_url:
+        company.logo_url = logo_url
+        db.commit()
+        db.refresh(company)
+    return _enrich(company, db)
 
 
 def _enrich(company: Company, db: Session) -> dict:
@@ -114,6 +237,11 @@ def _enrich(company: Company, db: Session) -> dict:
     return {
         "id": company.id,
         "name": company.name,
+        "website": company.website,
+        "logo_url": company.logo_url,
+        "entry_valuation": company.entry_valuation,
+        "amount_raising": company.amount_raising,
+        "investment_stage": company.investment_stage,
         "created_at": company.created_at,
         "updated_at": company.updated_at,
         "document_count": doc_count,

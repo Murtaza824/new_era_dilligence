@@ -57,6 +57,11 @@ def create_portfolio_entry(body: PortfolioCreateRequest, db: Session = Depends(g
     db.add(snap)
     db.commit()
     db.refresh(snap)
+    try:
+        from app.services.matchmaking import run_matchmaking_for_portfolio_added
+        run_matchmaking_for_portfolio_added(snap.id, db, trigger="portfolio_added")
+    except Exception as e:
+        logger.warning("Matchmaking after portfolio entry create failed: %s", e)
     return snap
 
 

@@ -57,6 +57,19 @@ def upload_document_json(
             index_document(company_id, doc.id, text)
         except Exception as e:
             logger.warning("RAG indexing failed (doc still ready): %s", e)
+
+        # Resolve and store company logo when adding a website
+        if body.type == "website" and body.url:
+            try:
+                from app.services.logo import resolve_logo_url
+                logo_url = resolve_logo_url(body.url)
+                if logo_url:
+                    company = db.query(Company).filter(Company.id == company_id).first()
+                    if company:
+                        company.logo_url = logo_url
+                        db.commit()
+            except Exception as e:
+                logger.warning("Logo resolution failed: %s", e)
     except Exception as e:
         logger.error(f"Document processing failed: {e}")
         doc.status = "error"

@@ -1,3 +1,19 @@
+// ── Activity / Agent jobs ───────────────────────────────────────────────
+
+export interface AgentJob {
+  id: string;
+  type: string;
+  entity_type: string;
+  entity_id: string;
+  status: "pending" | "running" | "completed" | "failed";
+  message: string | null;
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+  updated_at: string;
+  entity_label: string | null;
+}
+
 // ── Auth ───────────────────────────────────────────────────────────────
 
 export interface User {
@@ -16,10 +32,21 @@ export interface TokenResponse {
 export interface Company {
   id: string;
   name: string;
+  website: string | null;
+  logo_url: string | null;
+  entry_valuation: number | null;
+  amount_raising: number | null;
+  investment_stage: string | null;
   created_at: string;
   updated_at: string;
   document_count: number;
   has_memo: boolean;
+}
+
+export interface DealSuggestions {
+  entry_valuation: number | null;
+  amount_raising: number | null;
+  investment_stage: string | null;
 }
 
 export interface Document {
@@ -122,6 +149,8 @@ export interface PortfolioSnapshot {
   entry_valuation: number | null;
   last_valuation: number | null;
   ownership_pct: number | null;
+  /** When ownership_pct is null, backend computes (investment_size / entry_valuation) * 100 */
+  effective_ownership_pct: number | null;
   investment_date: string | null;
   imported_at: string;
   sector: string | null;
@@ -171,4 +200,42 @@ export interface PortfolioUpdateEntry {
   source: string | null;
   created_at: string;
   created_by: string;
+}
+
+// ── Network (contacts + introduction suggestions) ─────────────────────────
+
+export interface NetworkContact {
+  id: string;
+  name: string;
+  email: string | null;
+  phone_number: string | null;
+  location: string | null;
+  company_name: string | null;
+  role_or_title: string | null;
+  linkedin_url: string | null;
+  skills: string | null;
+  notes: string | null;
+  tags: string | null;
+  nev_fund_i_lp: boolean;
+  nev_syndicate_lp: boolean;
+  added_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IntroductionSuggestion {
+  id: string;
+  network_contact_id: string;
+  target_type: "company" | "portfolio";
+  target_company_id: string | null;
+  target_portfolio_id: string | null;
+  introduction_type: string;
+  reason_summary: string | null;
+  status: "suggested" | "introduced" | "dismissed";
+  created_by_trigger: string | null;
+  created_at: string;
+  updated_at: string;
+  contact_name: string | null;
+  target_company_name: string | null;
+  target_portfolio_name: string | null;
 }

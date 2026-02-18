@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Plus, Building2, FileText, FileCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { CompanyLogo } from "@/components/company-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
@@ -18,6 +19,7 @@ export default function CompaniesPage() {
   const [list, setList] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
+  const [newWebsite, setNewWebsite] = useState("");
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
@@ -39,8 +41,12 @@ export default function CompaniesPage() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      await companiesApi.create(newName.trim());
+      await companiesApi.create({
+        name: newName.trim(),
+        ...(newWebsite.trim() && { website: newWebsite.trim() }),
+      });
       setNewName("");
+      setNewWebsite("");
       setShowForm(false);
       load();
       toast.success("Company created");
@@ -71,13 +77,20 @@ export default function CompaniesPage() {
 
       {/* Create form */}
       {showForm && (
-        <div className="mb-8 flex items-center gap-3 rounded-xl border bg-card p-4 shadow-sm">
+        <div className="mb-8 flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4 shadow-sm">
           <Input
             placeholder="Company name…"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             className="max-w-xs"
+          />
+          <Input
+            placeholder="Website (optional — logo will be fetched)"
+            value={newWebsite}
+            onChange={(e) => setNewWebsite(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+            className="max-w-sm"
           />
           <Button onClick={handleCreate} disabled={creating || !newName.trim()} size="sm">
             {creating ? "Creating…" : "Create"}
@@ -145,7 +158,9 @@ export default function CompaniesPage() {
                 <Trash2 className="size-4" />
               </button>
 
-              <Link href={`/companies/${c.id}`} className="block">
+              <Link href={`/companies/${c.id}`} className="flex gap-3">
+                <CompanyLogo name={c.name} logoUrl={c.logo_url ?? null} size="md" />
+                <div className="min-w-0">
                 <h3 className="font-display text-lg font-semibold group-hover:underline">
                   {c.name}
                 </h3>
@@ -164,6 +179,7 @@ export default function CompaniesPage() {
                 <p className="text-muted-foreground mt-2 text-xs">
                   Added {new Date(c.created_at).toLocaleDateString()}
                 </p>
+                </div>
               </Link>
             </div>
           ))}

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, Float
 from app.database import Base
 
 
@@ -9,6 +9,11 @@ class Company(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
+    website = Column(String, nullable=True)
+    logo_url = Column(String, nullable=True)
+    entry_valuation = Column(Float, nullable=True)
+    amount_raising = Column(Float, nullable=True)
+    investment_stage = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
         DateTime,

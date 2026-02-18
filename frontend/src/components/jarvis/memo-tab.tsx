@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { memos as memosApi } from "@/lib/api";
+import { activity as activityApi, memos as memosApi } from "@/lib/api";
 import type { Memo } from "@/types";
 
 interface Props {
@@ -35,6 +35,7 @@ export function MemoTab({ companyId, onMemoGenerated }: Props) {
   const [memo, setMemo] = useState<Memo | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generationInProgress, setGenerationInProgress] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<number>>(
     new Set(),
@@ -57,8 +58,22 @@ export function MemoTab({ companyId, onMemoGenerated }: Props) {
     setError(null);
     memosApi
       .get(companyId)
-      .then(setMemo)
-      .catch(() => setMemo(null))
+      .then((m) => {
+        setMemo(m);
+        setGenerationInProgress(false);
+      })
+      .catch(() => {
+        setMemo(null);
+        return activityApi.list().then((jobs) => {
+          const running = jobs.some(
+            (j) =>
+              j.entity_id === companyId &&
+              j.type === "memo_generate" &&
+              (j.status === "pending" || j.status === "running"),
+          );
+          setGenerationInProgress(running);
+        });
+      })
       .finally(() => setLoading(false));
   }, [companyId]);
 
@@ -66,19 +81,37 @@ export function MemoTab({ companyId, onMemoGenerated }: Props) {
     load();
   }, [load]);
 
+  // Poll for memo when we know generation is in progress
+  useEffect(() => {
+    if (!generationInProgress || memo) return;
+    const id = setInterval(() => {
+      memosApi
+        .get(companyId)
+        .then((m) => {
+          setMemo(m);
+          setExpandedSections(new Set(m.sections.map((_, i) => i)));
+          setGenerationInProgress(false);
+          onMemoGenerated?.();
+        })
+        .catch(() => {});
+    }, 12000);
+    return () => clearInterval(id);
+  }, [companyId, generationInProgress, memo, onMemoGenerated]);
+
   // ── Handlers ───────────────────────────────────────────────────────────
 
   const handleGenerate = async () => {
     setGenerating(true);
     setError(null);
     try {
-      const result = await memosApi.generate(companyId);
-      setMemo(result);
-      setExpandedSections(new Set(result.sections.map((_, i) => i)));
-      onMemoGenerated?.();
-      toast.success("Memo generated");
+      await memosApi.generate(companyId);
+      setGenerationInProgress(true);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("jarvis-open-activity"));
+      }
+      toast.success("Memo generation started. Check the Activity panel.");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed to generate memo";
+      const msg = e instanceof Error ? e.message : "Failed to start memo generation";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -90,13 +123,14 @@ export function MemoTab({ companyId, onMemoGenerated }: Props) {
     setGenerating(true);
     setError(null);
     try {
-      const result = await memosApi.revise(companyId);
-      setMemo(result);
-      setExpandedSections(new Set(result.sections.map((_, i) => i)));
-      onMemoGenerated?.();
-      toast.success("Memo regenerated");
+      await memosApi.revise(companyId);
+      setGenerationInProgress(true);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("jarvis-open-activity"));
+      }
+      toast.success("Memo revision started. Check the Activity panel.");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed to revise memo";
+      const msg = e instanceof Error ? e.message : "Failed to start memo revision";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -203,39 +237,41 @@ export function MemoTab({ companyId, onMemoGenerated }: Props) {
     );
   }
 
-  // ── Generating overlay ─────────────────────────────────────────────────
-
-  if (generating) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <Loader2 className="text-muted-foreground mb-4 size-10 animate-spin" />
-        <p className="text-lg font-medium">Generating investment memo…</p>
-        <p className="text-muted-foreground mt-1 text-sm">
-          This may take 1–2 minutes. Running 9 section agents + polish pass.
-        </p>
-      </div>
-    );
-  }
-
-  // ── No memo yet ────────────────────────────────────────────────────────
+  // ── No memo yet (or generation in progress) ──────────────────────────────
 
   if (!memo) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed py-20">
-        <FileText className="text-muted-foreground mb-4 size-12" />
-        <p className="text-lg font-medium">No memo yet</p>
-        <p className="text-muted-foreground mb-6 text-sm">
-          Generate an investment memo from uploaded documents.
-        </p>
-        {error && (
-          <p className="mb-4 rounded-lg bg-destructive/10 px-4 py-2 text-sm text-destructive">
-            {error}
-          </p>
+        {generationInProgress ? (
+          <>
+            <Loader2 className="text-muted-foreground mb-4 size-12 animate-spin" />
+            <p className="text-lg font-medium">Memo is still generating</p>
+            <p className="text-muted-foreground mt-1 mb-6 max-w-sm text-center text-sm">
+              Check the Activity panel on the right, or come back in a minute. The page will update when it’s ready.
+            </p>
+          </>
+        ) : (
+          <>
+            <FileText className="text-muted-foreground mb-4 size-12" />
+            <p className="text-lg font-medium">No memo yet</p>
+            <p className="text-muted-foreground mb-6 text-sm">
+              Generate an investment memo from uploaded documents.
+            </p>
+            {error && (
+              <p className="mb-4 rounded-lg bg-destructive/10 px-4 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            <Button onClick={handleGenerate} disabled={generating}>
+              {generating ? (
+                <Loader2 className="mr-1.5 size-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1.5 size-4" />
+              )}
+              Generate Memo
+            </Button>
+          </>
         )}
-        <Button onClick={handleGenerate} disabled={generating}>
-          <Sparkles className="mr-1.5 size-4" />
-          Generate Memo
-        </Button>
       </div>
     );
   }
