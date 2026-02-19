@@ -239,3 +239,46 @@ export interface IntroductionSuggestion {
   target_company_name: string | null;
   target_portfolio_name: string | null;
 }
+
+// ── Dealflow ────────────────────────────────────────────────────────────────
+
+export interface DealflowFounder {
+  id: string;
+  dealflow_entry_id: string;
+  name: string;
+  linkedin_url: string | null;
+  twitter_url: string | null;
+  email: string | null;
+}
+
+export interface DealflowEntry {
+  id: string;
+  name: string;
+  website: string | null;
+  company_linkedin_url: string | null;
+  one_liner: string | null;
+  location: string | null;
+  stage: string | null;
+  amount_raising: number | null;
+  valuation: number | null;
+  notes: string | null;
+  source_type: string | null;
+  source_detail: string | null;
+  status: string;
+  added_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+  founders: DealflowFounder[];
+  document_count: number;
+  promoted_company_id: string | null;
+}
+
+export interface DealflowDocument {
+  id: string;
+  dealflow_entry_id: string;
+  type: string;
+  status: string;
+  url: string | null;
+  original_filename: string | null;
+  created_at: string;
+}

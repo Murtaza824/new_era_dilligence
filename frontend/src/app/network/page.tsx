@@ -230,7 +230,7 @@ export default function NetworkPage() {
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-3">
             <Input
-              placeholder="Search name, email, company"
+              placeholder="Search all columns…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-xs"

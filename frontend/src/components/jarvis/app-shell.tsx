@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { useEffect, useState } from "react";
 
-import { Building2, Briefcase, LogOut, PanelRightOpen, Users } from "lucide-react";
+import { Building2, Briefcase, LayoutList, LogOut, PanelRightOpen, Users } from "lucide-react";
 
 import { AgentActivityPanel } from "@/components/jarvis/agent-activity-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -14,7 +14,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { label: "Companies", href: "/companies", icon: Building2 },
+  { label: "Dealflow", href: "/dealflow", icon: LayoutList },
+  { label: "Deal Room", href: "/companies", icon: Building2 },
   { label: "Portfolio", href: "/portfolio", icon: Briefcase },
   { label: "Network", href: "/network", icon: Users },
 ];

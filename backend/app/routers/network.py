@@ -197,7 +197,7 @@ def import_contacts_csv(
 @router.get("/contacts", response_model=list[NetworkContactOut])
 def list_contacts(
     db: Session = Depends(get_db),
-    q: Optional[str] = Query(None, description="Search name, email, company"),
+    q: Optional[str] = Query(None, description="Search across all fields"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
     added_by: Optional[str] = Query(None, description="Filter by added_by_user_id"),
 ):
@@ -209,6 +209,13 @@ def list_contacts(
                 NetworkContact.name.ilike(term),
                 NetworkContact.email.ilike(term),
                 NetworkContact.company_name.ilike(term),
+                NetworkContact.role_or_title.ilike(term),
+                NetworkContact.linkedin_url.ilike(term),
+                NetworkContact.phone_number.ilike(term),
+                NetworkContact.location.ilike(term),
+                NetworkContact.skills.ilike(term),
+                NetworkContact.notes.ilike(term),
+                NetworkContact.tags.ilike(term),
             )
         )
     if tags and tags.strip():

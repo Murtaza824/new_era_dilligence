@@ -1,7 +1,7 @@
 /**
  * Typed API client for the Jarvis backend.
  */
-import type { AgentJob, Company, Document, IntroductionSuggestion, Memo, NetworkContact, SimulationRun, SimulationSuggestion, PortfolioSnapshot, PortfolioUpdateEntry, PortfolioSimulationLatest, PortfolioSimulationOutputs, User, TokenResponse, DealSuggestions } from "@/types";
+import type { AgentJob, Company, DealflowDocument, DealflowEntry, DealflowFounder, Document, IntroductionSuggestion, Memo, NetworkContact, SimulationRun, SimulationSuggestion, PortfolioSnapshot, PortfolioUpdateEntry, PortfolioSimulationLatest, PortfolioSimulationOutputs, User, TokenResponse, DealSuggestions } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "jarvis_token";
@@ -401,6 +401,122 @@ export const networkApi = {
         method: "PATCH",
         body: JSON.stringify({ status }),
       }),
+  },
+};
+
+// ── Dealflow ──────────────────────────────────────────────────────────────
+
+export type DealflowEntryCreateBody = {
+  name: string;
+  website?: string;
+  company_linkedin_url?: string;
+  one_liner?: string;
+  location?: string;
+  stage?: string;
+  amount_raising?: number;
+  valuation?: number;
+  notes?: string;
+  source_type?: string;
+  source_detail?: string;
+  status?: string;
+  founders?: { name: string; linkedin_url?: string; twitter_url?: string; email?: string }[];
+};
+
+export type DealflowEntryUpdateBody = Partial<DealflowEntryCreateBody>;
+
+export const dealflowApi = {
+  entries: {
+    list: (params?: { q?: string; status?: string; source_type?: string; stage?: string }) => {
+      const sp = new URLSearchParams();
+      if (params?.q) sp.set("q", params.q);
+      if (params?.status) sp.set("status", params.status);
+      if (params?.source_type) sp.set("source_type", params.source_type);
+      if (params?.stage) sp.set("stage", params.stage);
+      const query = sp.toString();
+      return request<DealflowEntry[]>(`/dealflow/entries${query ? `?${query}` : ""}`);
+    },
+    get: (id: string) => request<DealflowEntry>(`/dealflow/entries/${id}`),
+    create: (body: DealflowEntryCreateBody) =>
+      request<DealflowEntry>("/dealflow/entries", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: DealflowEntryUpdateBody) =>
+      request<DealflowEntry>(`/dealflow/entries/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<{ ok: boolean }>(`/dealflow/entries/${id}`, { method: "DELETE" }),
+    addFounder: (entryId: string, body: { name: string; linkedin_url?: string; twitter_url?: string; email?: string }) =>
+      request<DealflowFounder>(`/dealflow/entries/${entryId}/founders`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    deleteFounder: (entryId: string, founderId: string) =>
+      request<{ ok: boolean }>(`/dealflow/entries/${entryId}/founders/${founderId}`, {
+        method: "DELETE",
+      }),
+    promoteToDealRoom: (entryId: string, copyDocuments = true) =>
+      request<{ company_id: string; message: string }>(
+        `/dealflow/entries/${entryId}/promote-to-deal-room?copy_documents=${copyDocuments}`,
+        { method: "POST" }
+      ),
+  },
+  documents: {
+    list: (entryId: string) =>
+      request<DealflowDocument[]>(`/dealflow/entries/${entryId}/documents`),
+    addLink: (entryId: string, body: { type: string; url?: string }) =>
+      request<DealflowDocument>(`/dealflow/entries/${entryId}/documents`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    uploadFile: async (entryId: string, file: File, docType = "pitch_deck"): Promise<DealflowDocument> => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("doc_type", docType);
+      const token = getToken();
+      const headers: HeadersInit = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`${BASE}/dealflow/entries/${entryId}/documents/upload`, {
+        method: "POST",
+        headers,
+        body: form,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail ?? `Upload failed ${res.status}`);
+      }
+      return res.json();
+    },
+    delete: (entryId: string, documentId: string) =>
+      request<{ ok: boolean }>(`/dealflow/entries/${entryId}/documents/${documentId}`, {
+        method: "DELETE",
+      }),
+    downloadFile: async (entryId: string, documentId: string, filename?: string): Promise<void> => {
+      const token = getToken();
+      const headers: HeadersInit = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(
+        `${BASE}/dealflow/entries/${entryId}/documents/${documentId}/file`,
+        { headers }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail ?? "Download failed");
+      }
+      const blob = await res.blob();
+      const name =
+        filename ||
+        res.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1] ||
+        "document.pdf";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
   },
 };
 

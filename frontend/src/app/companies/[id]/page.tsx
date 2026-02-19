@@ -98,7 +98,7 @@ export default function CompanyDetailPage() {
         className="text-muted-foreground hover:text-foreground mb-6 inline-flex items-center gap-1.5 text-sm transition-colors"
       >
         <ArrowLeft className="size-4" />
-        All Companies
+        Deal Room
       </Link>
 
       {/* Header */}

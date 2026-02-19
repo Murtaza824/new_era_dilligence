@@ -63,7 +63,7 @@ export default function CompaniesPage() {
       <div className="mb-10 flex items-center justify-between">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">
-            Company Library
+            Deal Room
           </h1>
           <p className="text-muted-foreground mt-1">
             Manage deal pipeline and diligence materials.

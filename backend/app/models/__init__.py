@@ -1,6 +1,9 @@
 from app.models.agent_job import AgentJob
 from app.models.company import Company
 from app.models.contact_introduction_suggestion import ContactIntroductionSuggestion
+from app.models.dealflow_document import DealflowDocument
+from app.models.dealflow_entry import DealflowEntry
+from app.models.dealflow_founder import DealflowFounder
 from app.models.document import Document
 from app.models.memo import Memo, MemoRevision
 from app.models.network_contact import NetworkContact
@@ -14,6 +17,9 @@ __all__ = [
     "AgentJob",
     "Company",
     "ContactIntroductionSuggestion",
+    "DealflowDocument",
+    "DealflowEntry",
+    "DealflowFounder",
     "Document",
     "Memo",
     "MemoRevision",

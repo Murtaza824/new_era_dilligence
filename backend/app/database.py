@@ -150,6 +150,20 @@ def _migrate_network_contact_extra_columns():
             conn.commit()
 
 
+def _migrate_company_dealflow_entry_id():
+    """Add dealflow_entry_id to companies if missing (link from Deal Room back to Dealflow)."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            r = conn.execute(text("PRAGMA table_info(companies)"))
+            cols = {row[1] for row in r.fetchall()}
+            if "dealflow_entry_id" not in cols:
+                conn.execute(text("ALTER TABLE companies ADD COLUMN dealflow_entry_id VARCHAR"))
+                conn.commit()
+        else:
+            conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS dealflow_entry_id VARCHAR"))
+            conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
@@ -159,3 +173,4 @@ def init_db():
     _migrate_document_file_columns()
     _migrate_network_contact_lp_columns()
     _migrate_network_contact_extra_columns()
+    _migrate_company_dealflow_entry_id()
