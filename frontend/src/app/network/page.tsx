@@ -281,8 +281,9 @@ export default function NetworkPage() {
                 />
                 {relationshipManagers.length > 0 && (
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-muted-foreground text-xs font-medium">Relationship manager</label>
+                    <label htmlFor="new-contact-relationship-manager" className="text-muted-foreground text-xs font-medium">Relationship manager</label>
                     <select
+                      id="new-contact-relationship-manager"
                       value={selectedAddedBy}
                       onChange={(e) => setSelectedAddedBy(e.target.value)}
                       className="rounded-md border bg-background px-3 py-2 text-sm"
@@ -342,15 +343,17 @@ export default function NetworkPage() {
                   className="sm:col-span-2"
                 />
                 <div className="sm:col-span-2 flex flex-wrap items-center gap-6">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label htmlFor="new-contact-nev-fund-lp" className="flex items-center gap-2 text-sm cursor-pointer">
                     <Checkbox
+                      id="new-contact-nev-fund-lp"
                       checked={newNevFundILp}
                       onCheckedChange={(v) => setNewNevFundILp(v === true)}
                     />
                     NEV Fund I LP
                   </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label htmlFor="new-contact-nev-syndicate-lp" className="flex items-center gap-2 text-sm cursor-pointer">
                     <Checkbox
+                      id="new-contact-nev-syndicate-lp"
                       checked={newNevSyndicateLp}
                       onCheckedChange={(v) => setNewNevSyndicateLp(v === true)}
                     />

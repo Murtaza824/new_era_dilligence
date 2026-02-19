@@ -42,13 +42,6 @@ const STAGE_OPTIONS = [
   { value: "Other", label: "Other" },
 ];
 
-function formatCurrency(n: number | null | undefined): string {
-  if (n == null) return "";
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
-  return String(n);
-}
-
 export default function DealflowDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -254,16 +247,18 @@ export default function DealflowDetailPage() {
         <h3 className="font-medium">Company details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2">
-            <label className="text-muted-foreground text-xs font-medium">Name</label>
+            <label htmlFor="dealflow-name" className="text-muted-foreground text-xs font-medium">Name</label>
             <Input
+              id="dealflow-name"
               defaultValue={entry.name}
               onBlur={(e) => e.target.value !== entry.name && save({ name: e.target.value })}
               className="mt-0.5"
             />
           </div>
           <div>
-            <label className="text-muted-foreground text-xs font-medium">Website</label>
+            <label htmlFor="dealflow-website" className="text-muted-foreground text-xs font-medium">Website</label>
             <Input
+              id="dealflow-website"
               defaultValue={entry.website ?? ""}
               placeholder="https://…"
               onBlur={(e) => save({ website: e.target.value || undefined })}
@@ -271,8 +266,9 @@ export default function DealflowDetailPage() {
             />
           </div>
           <div>
-            <label className="text-muted-foreground text-xs font-medium">Company LinkedIn</label>
+            <label htmlFor="dealflow-company-linkedin" className="text-muted-foreground text-xs font-medium">Company LinkedIn</label>
             <Input
+              id="dealflow-company-linkedin"
               defaultValue={entry.company_linkedin_url ?? ""}
               placeholder="https://linkedin.com/company/…"
               onBlur={(e) => save({ company_linkedin_url: e.target.value || undefined })}
@@ -280,24 +276,27 @@ export default function DealflowDetailPage() {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-muted-foreground text-xs font-medium">One-liner</label>
+            <label htmlFor="dealflow-one-liner" className="text-muted-foreground text-xs font-medium">One-liner</label>
             <Input
+              id="dealflow-one-liner"
               defaultValue={entry.one_liner ?? ""}
               onBlur={(e) => save({ one_liner: e.target.value || undefined })}
               className="mt-0.5"
             />
           </div>
           <div>
-            <label className="text-muted-foreground text-xs font-medium">Location</label>
+            <label htmlFor="dealflow-location" className="text-muted-foreground text-xs font-medium">Location</label>
             <Input
+              id="dealflow-location"
               defaultValue={entry.location ?? ""}
               onBlur={(e) => save({ location: e.target.value || undefined })}
               className="mt-0.5"
             />
           </div>
           <div>
-            <label className="text-muted-foreground text-xs font-medium">Stage</label>
+            <label htmlFor="dealflow-stage" className="text-muted-foreground text-xs font-medium">Stage</label>
             <select
+              id="dealflow-stage"
               defaultValue={entry.stage ?? ""}
               onChange={(e) => save({ stage: e.target.value || undefined })}
               className="mt-0.5 w-full rounded-md border bg-background px-3 py-2 text-sm"
@@ -308,8 +307,9 @@ export default function DealflowDetailPage() {
             </select>
           </div>
           <div>
-            <label className="text-muted-foreground text-xs font-medium">Amount raising ($)</label>
+            <label htmlFor="dealflow-amount-raising" className="text-muted-foreground text-xs font-medium">Amount raising ($)</label>
             <Input
+              id="dealflow-amount-raising"
               type="number"
               defaultValue={entry.amount_raising ?? ""}
               onBlur={(e) => save({ amount_raising: e.target.value ? parseFloat(e.target.value) : undefined })}
@@ -317,8 +317,9 @@ export default function DealflowDetailPage() {
             />
           </div>
           <div>
-            <label className="text-muted-foreground text-xs font-medium">Valuation ($)</label>
+            <label htmlFor="dealflow-valuation" className="text-muted-foreground text-xs font-medium">Valuation ($)</label>
             <Input
+              id="dealflow-valuation"
               type="number"
               defaultValue={entry.valuation ?? ""}
               onBlur={(e) => save({ valuation: e.target.value ? parseFloat(e.target.value) : undefined })}
@@ -326,8 +327,9 @@ export default function DealflowDetailPage() {
             />
           </div>
           <div>
-            <label className="text-muted-foreground text-xs font-medium">Source</label>
+            <label htmlFor="dealflow-source" className="text-muted-foreground text-xs font-medium">Source</label>
             <select
+              id="dealflow-source"
               defaultValue={entry.source_type ?? ""}
               onChange={(e) => save({ source_type: e.target.value || undefined })}
               className="mt-0.5 w-full rounded-md border bg-background px-3 py-2 text-sm"
@@ -338,8 +340,9 @@ export default function DealflowDetailPage() {
             </select>
           </div>
           <div>
-            <label className="text-muted-foreground text-xs font-medium">Source detail</label>
+            <label htmlFor="dealflow-source-detail" className="text-muted-foreground text-xs font-medium">Source detail</label>
             <Input
+              id="dealflow-source-detail"
               defaultValue={entry.source_detail ?? ""}
               placeholder="e.g. Twitter @xyz"
               onBlur={(e) => save({ source_detail: e.target.value || undefined })}
@@ -347,8 +350,9 @@ export default function DealflowDetailPage() {
             />
           </div>
           <div>
-            <label className="text-muted-foreground text-xs font-medium">Status</label>
+            <label htmlFor="dealflow-status" className="text-muted-foreground text-xs font-medium">Status</label>
             <select
+              id="dealflow-status"
               defaultValue={entry.status}
               onChange={(e) => save({ status: e.target.value })}
               className="mt-0.5 w-full rounded-md border bg-background px-3 py-2 text-sm"
@@ -359,8 +363,9 @@ export default function DealflowDetailPage() {
             </select>
           </div>
           <div className="sm:col-span-2">
-            <label className="text-muted-foreground text-xs font-medium">Notes</label>
+            <label htmlFor="dealflow-notes" className="text-muted-foreground text-xs font-medium">Notes</label>
             <textarea
+              id="dealflow-notes"
               defaultValue={entry.notes ?? ""}
               onBlur={(e) => save({ notes: e.target.value || undefined })}
               rows={3}

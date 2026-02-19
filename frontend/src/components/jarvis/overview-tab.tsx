@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { ExternalLink, FileText, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
+
+import { ExternalLink, FileText, Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { memos as memosApi } from "@/lib/api";
@@ -19,8 +20,6 @@ interface Props {
 
 export function OverviewTab({
   companyId,
-  companyName,
-  onMemoGenerated,
   setActiveTab,
 }: Props) {
   const [memo, setMemo] = useState<Memo | null>(null);

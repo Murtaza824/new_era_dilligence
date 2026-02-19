@@ -1,13 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+
+import Link from "next/link";
 
 import { Check, Loader2, X } from "lucide-react";
 
 import { activity as activityApi } from "@/lib/api";
-import type { AgentJob } from "@/types";
 import { cn } from "@/lib/utils";
+import type { AgentJob } from "@/types";
 
 const POLL_INTERVAL_MS = 6000;
 

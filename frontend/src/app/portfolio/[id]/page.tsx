@@ -22,11 +22,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { overviewAsParagraph, parseFoundersFromTeamContent } from "@/lib/memo-overview";
-
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { portfolioApi, memos as memosApi } from "@/lib/api";
+import { overviewAsParagraph, parseFoundersFromTeamContent } from "@/lib/memo-overview";
 import type { PortfolioSnapshot, PortfolioUpdateEntry, Memo, SimulationRun } from "@/types";
 
 function fmt$(n: number | null): string {
