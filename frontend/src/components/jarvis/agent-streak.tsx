@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { activity as activityApi } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
+import { activity as activityApi } from "@/lib/api";
 
 const POLL_INTERVAL_MS = 4000;
 
