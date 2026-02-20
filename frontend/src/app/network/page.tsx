@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 
-import { Check, FileUp, Plus, UserPlus, X } from "lucide-react";
+import { Check, FileUp, Linkedin, Mail, Phone, Plus, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -378,47 +378,76 @@ export default function NetworkPage() {
             <p className="text-muted-foreground">No contacts yet. Add one above.</p>
           ) : (
             <div className="rounded-xl border bg-card overflow-hidden">
-              <ul className="divide-y">
-                {contacts.map((c) => (
-                  <li key={c.id} className="p-4 flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <span className="font-medium">{c.name}</span>
-                      {(c.company_name || c.role_or_title) && (
-                        <span className="text-muted-foreground text-sm ml-2">
-                          {[c.role_or_title, c.company_name].filter(Boolean).join(" · ")}
-                        </span>
+              <ul className="divide-y divide-border">
+                {contacts.map((c) => {
+                  const rmLabel = relationshipManagers.length > 0
+                    ? relationshipManagerLabel(
+                        relationshipManagers.find((r) => r.id === c.added_by_user_id)?.email ?? ""
+                      )
+                    : null;
+                  const linkedinHref = c.linkedin_url
+                    ? (c.linkedin_url.startsWith("http") ? c.linkedin_url : `https://${c.linkedin_url}`)
+                    : null;
+                  const hasActions = linkedinHref || c.email || c.phone_number;
+                  return (
+                    <li
+                      key={c.id}
+                      className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-foreground truncate">{c.name}</p>
+                        {(c.role_or_title || c.company_name) && (
+                          <p className="text-muted-foreground text-sm truncate mt-0.5">
+                            {[c.role_or_title, c.company_name].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                        <p className="text-muted-foreground text-xs mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                          {rmLabel && <span>RM: {rmLabel}</span>}
+                          {(c.nev_fund_i_lp || c.nev_syndicate_lp) && (
+                            <span>
+                              {[c.nev_fund_i_lp && "Fund I", c.nev_syndicate_lp && "Syndicate"].filter(Boolean).join(", ")} LP
+                            </span>
+                          )}
+                          {c.location && <span>{c.location}</span>}
+                          {c.tags && <span>{c.tags}</span>}
+                        </p>
+                      </div>
+                      {hasActions && (
+                        <div className="flex shrink-0 items-center gap-1">
+                          {linkedinHref && (
+                            <a
+                              href={linkedinHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                              title="LinkedIn"
+                            >
+                              <Linkedin className="size-4" />
+                            </a>
+                          )}
+                          {c.email && (
+                            <a
+                              href={`mailto:${c.email}`}
+                              className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                              title={`Email ${c.email}`}
+                            >
+                              <Mail className="size-4" />
+                            </a>
+                          )}
+                          {c.phone_number && (
+                            <a
+                              href={`tel:${c.phone_number}`}
+                              className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                              title={`Call ${c.phone_number}`}
+                            >
+                              <Phone className="size-4" />
+                            </a>
+                          )}
+                        </div>
                       )}
-                      <p className="text-muted-foreground text-xs mt-0.5 flex flex-wrap gap-x-3 gap-y-0 items-center">
-                        {relationshipManagers.length > 0 && (() => {
-                          const label = relationshipManagerLabel(
-                            relationshipManagers.find((r) => r.id === c.added_by_user_id)?.email ?? ""
-                          );
-                          return label ? <span>Relationship manager: {label}</span> : null;
-                        })()}
-                        {(c.nev_fund_i_lp || c.nev_syndicate_lp) && (
-                          <span>
-                            LP: {[c.nev_fund_i_lp && "NEV Fund I", c.nev_syndicate_lp && "NEV Syndicate"].filter(Boolean).join(", ")}
-                          </span>
-                        )}
-                        {c.phone_number && <span>Phone: {c.phone_number}</span>}
-                        {c.location && <span>Location: {c.location}</span>}
-                        {c.skills && <span>Skills: {c.skills}</span>}
-                        {c.tags && <span>Tags: {c.tags}</span>}
-                        {c.notes && <span>Notes: {c.notes.slice(0, 60)}{c.notes.length > 60 ? "…" : ""}</span>}
-                        {c.linkedin_url && (
-                          <a
-                            href={c.linkedin_url.startsWith("http") ? c.linkedin_url : `https://${c.linkedin_url}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                          >
-                            LinkedIn
-                          </a>
-                        )}
-                      </p>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

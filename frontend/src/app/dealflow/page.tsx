@@ -335,7 +335,7 @@ export default function DealflowPage() {
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/dealflow/${e.id}`}
-                        className="font-medium text-primary hover:underline"
+                        className="font-medium text-foreground hover:text-primary hover:underline"
                       >
                         {e.name}
                       </Link>
