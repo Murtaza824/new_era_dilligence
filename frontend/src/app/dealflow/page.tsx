@@ -387,7 +387,6 @@ export default function DealflowPage() {
                         <Input
                           className="h-8 w-full min-w-[120px]"
                           defaultValue={e.name}
-                          autoFocus
                           onBlur={(ev) => handleInlineSave(e.id, "name", ev.target.value.trim() || e.name)}
                           onKeyDown={(ev) => {
                             if (ev.key === "Enter") {
@@ -429,7 +428,6 @@ export default function DealflowPage() {
                       <Input
                         className="h-8 w-full text-sm"
                         defaultValue={e.one_liner ?? ""}
-                        autoFocus
                         placeholder="One-liner"
                         onBlur={(ev) => handleInlineSave(e.id, "one_liner", ev.target.value.trim() || undefined)}
                         onKeyDown={(ev) => {
@@ -455,7 +453,6 @@ export default function DealflowPage() {
                       <select
                         className="h-8 w-full min-w-[100px] rounded-md border bg-background px-2 text-sm"
                         defaultValue={e.stage ?? ""}
-                        autoFocus
                         onBlur={(ev) => handleInlineSave(e.id, "stage", ev.target.value || undefined)}
                         onKeyDown={(ev) => ev.key === "Escape" && setEditing(null)}
                       >
@@ -481,7 +478,6 @@ export default function DealflowPage() {
                         type="number"
                         className="h-8 w-24 text-right text-sm ml-auto"
                         defaultValue={e.amount_raising ?? ""}
-                        autoFocus
                         placeholder="—"
                         onBlur={(ev) =>
                           handleInlineSave(
@@ -513,7 +509,6 @@ export default function DealflowPage() {
                         type="number"
                         className="h-8 w-24 text-right text-sm ml-auto"
                         defaultValue={e.valuation ?? ""}
-                        autoFocus
                         placeholder="—"
                         onBlur={(ev) =>
                           handleInlineSave(
@@ -544,7 +539,6 @@ export default function DealflowPage() {
                       <Input
                         className="h-8 w-full min-w-[80px] text-sm"
                         defaultValue={e.location ?? ""}
-                        autoFocus
                         placeholder="—"
                         onBlur={(ev) => handleInlineSave(e.id, "location", ev.target.value.trim() || undefined)}
                         onKeyDown={(ev) => {
@@ -569,7 +563,6 @@ export default function DealflowPage() {
                       <select
                         className="h-8 w-full min-w-[90px] rounded-md border bg-background px-2 text-sm"
                         defaultValue={e.source_type ?? ""}
-                        autoFocus
                         onBlur={(ev) => handleInlineSave(e.id, "source_type", ev.target.value || undefined)}
                         onKeyDown={(ev) => ev.key === "Escape" && setEditing(null)}
                       >
@@ -594,7 +587,6 @@ export default function DealflowPage() {
                       <select
                         className="h-8 w-full min-w-[100px] rounded-md border bg-background px-2 text-sm"
                         defaultValue={e.status}
-                        autoFocus
                         onBlur={(ev) => handleInlineSave(e.id, "status", ev.target.value)}
                         onKeyDown={(ev) => ev.key === "Escape" && setEditing(null)}
                       >
