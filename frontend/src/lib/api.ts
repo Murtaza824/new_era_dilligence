@@ -116,6 +116,66 @@ async function requestPostAccept202(path: string): Promise<{ job_id: string; mes
 export const activity = {
   list: () => request<AgentJob[]>("/activity"),
   getJob: (jobId: string) => request<AgentJob>(`/activity/jobs/${jobId}`),
+  streamUrl: () => `${BASE}/activity/stream`,
+};
+
+// ── Agent Chat ──────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp?: string;
+}
+
+export const agentChat = {
+  streamChat: async function* (
+    message: string,
+    history: ChatMessage[],
+    contextType?: string,
+    contextId?: string,
+  ): AsyncGenerator<{ type: string; content?: string }> {
+    const token = getToken();
+    const headers: HeadersInit = { "Content-Type": "application/json" };
+    if (token) (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE}/agent-chat/stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        message,
+        context_type: contextType,
+        context_id: contextId,
+        history,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Chat failed: ${res.status}`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) return;
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            yield JSON.parse(line.slice(6));
+          } catch {
+            // skip malformed
+          }
+        }
+      }
+    }
+  },
 };
 
 // ── Auth ────────────────────────────────────────────────────────────────

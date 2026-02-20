@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import Link from "next/link";
 
-import { Check, Loader2, X } from "lucide-react";
+import { Check, Clock, Loader2, User, X } from "lucide-react";
 
 import { activity as activityApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,14 @@ function timeAgo(dateStr: string): string {
   if (sec < 3600) return `${Math.floor(sec / 60)} min ago`;
   if (sec < 86400) return `${Math.floor(sec / 3600)} hr ago`;
   return `${Math.floor(sec / 86400)} d ago`;
+}
+
+function formatDuration(seconds: number | null): string | null {
+  if (seconds == null) return null;
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return `${mins}m ${secs}s`;
 }
 
 interface Props {
@@ -85,6 +93,52 @@ export function AgentActivityPanel({ isOpen, onClose }: Props) {
                 job.type === "memo_generate" && job.entity_type === "company"
                   ? `/companies/${job.entity_id}?tab=memo`
                   : null;
+              const duration = formatDuration(job.duration_seconds);
+
+              const cardContent = (
+                <>
+                  <div className="mt-0.5 shrink-0">
+                    {isRunning ? (
+                      <Loader2 className="text-muted-foreground size-4 animate-spin" />
+                    ) : job.status === "completed" ? (
+                      <Check className="text-green-600 size-4" />
+                    ) : (
+                      <X className="text-destructive size-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{jobTypeLabel(job.type)}</p>
+                    <p className="text-muted-foreground truncate text-xs">{label}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                      <span>
+                        {isRunning
+                          ? `Started ${timeAgo(job.created_at)}`
+                          : job.completed_at
+                            ? `Completed ${timeAgo(job.completed_at)}`
+                            : `Updated ${timeAgo(job.updated_at)}`}
+                      </span>
+                      {duration && (
+                        <span className="flex items-center gap-0.5">
+                          <Clock className="size-3" />
+                          {duration}
+                        </span>
+                      )}
+                    </div>
+                    {job.triggered_by_user_email && (
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                        <User className="size-3" />
+                        {job.triggered_by_user_email.split("@")[0]}
+                      </p>
+                    )}
+                    {job.status === "failed" && job.error && (
+                      <p className="mt-1 truncate text-xs text-destructive" title={job.error}>
+                        {job.error}
+                      </p>
+                    )}
+                  </div>
+                </>
+              );
+
               return (
                 <li key={job.id}>
                   {href ? (
@@ -95,59 +149,11 @@ export function AgentActivityPanel({ isOpen, onClose }: Props) {
                         "hover:bg-muted/50",
                       )}
                     >
-                      <div className="mt-0.5 shrink-0">
-                        {isRunning ? (
-                          <Loader2 className="text-muted-foreground size-4 animate-spin" />
-                        ) : job.status === "completed" ? (
-                          <Check className="text-green-600 size-4" />
-                        ) : (
-                          <X className="text-destructive size-4" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{jobTypeLabel(job.type)}</p>
-                        <p className="text-muted-foreground truncate text-xs">{label}</p>
-                        <p className="text-muted-foreground mt-0.5 text-xs">
-                          {isRunning
-                            ? `Started ${timeAgo(job.created_at)}`
-                            : job.completed_at
-                              ? `Completed ${timeAgo(job.completed_at)}`
-                              : `Updated ${timeAgo(job.updated_at)}`}
-                        </p>
-                        {job.status === "failed" && job.error && (
-                          <p className="mt-1 truncate text-xs text-destructive" title={job.error}>
-                            {job.error}
-                          </p>
-                        )}
-                      </div>
+                      {cardContent}
                     </Link>
                   ) : (
                     <div className="flex items-start gap-3 rounded-lg border p-3">
-                      <div className="mt-0.5 shrink-0">
-                        {isRunning ? (
-                          <Loader2 className="text-muted-foreground size-4 animate-spin" />
-                        ) : job.status === "completed" ? (
-                          <Check className="text-green-600 size-4" />
-                        ) : (
-                          <X className="text-destructive size-4" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{jobTypeLabel(job.type)}</p>
-                        <p className="text-muted-foreground truncate text-xs">{label}</p>
-                        <p className="text-muted-foreground mt-0.5 text-xs">
-                          {isRunning
-                            ? `Started ${timeAgo(job.created_at)}`
-                            : job.completed_at
-                              ? `Completed ${timeAgo(job.completed_at)}`
-                              : `Updated ${timeAgo(job.updated_at)}`}
-                        </p>
-                        {job.status === "failed" && job.error && (
-                          <p className="mt-1 truncate text-xs text-destructive" title={job.error}>
-                            {job.error}
-                          </p>
-                        )}
-                      </div>
+                      {cardContent}
                     </div>
                   )}
                 </li>

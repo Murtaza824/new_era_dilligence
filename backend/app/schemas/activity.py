@@ -13,8 +13,12 @@ class AgentJobOut(BaseModel):
     message: Optional[str] = None
     error: Optional[str] = None
     created_at: datetime
+    started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     updated_at: datetime
-    entity_label: Optional[str] = None  # e.g. company name for display
+    entity_label: Optional[str] = None
+    triggered_by_user_id: Optional[str] = None
+    triggered_by_user_email: Optional[str] = None
+    duration_seconds: Optional[float] = None
 
     model_config = {"from_attributes": True}

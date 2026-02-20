@@ -19,6 +19,7 @@ import {
 import Markdown from "react-markdown";
 import { toast } from "sonner";
 
+import { GeneratingIndicator } from "@/components/jarvis/generating-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -244,8 +245,10 @@ export function MemoTab({ companyId, onMemoGenerated }: Props) {
       <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed py-20">
         {generationInProgress ? (
           <>
-            <Loader2 className="text-muted-foreground mb-4 size-12 animate-spin" />
-            <p className="text-lg font-medium">Memo is still generating</p>
+            <div className="mb-4">
+              <GeneratingIndicator label="Writing investment memo" size="lg" />
+            </div>
+            <p className="text-lg font-medium">Memo is generating</p>
             <p className="text-muted-foreground mt-1 mb-6 max-w-sm text-center text-sm">
               Check the Activity panel on the right, or come back in a minute. The page will update when it’s ready.
             </p>

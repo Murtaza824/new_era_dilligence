@@ -9,6 +9,7 @@ import { ArrowLeft, Briefcase, FileText, Plus, Trash2, Upload } from "lucide-rea
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { dealflowApi, type DealflowEntryUpdateBody } from "@/lib/api";
@@ -61,6 +62,7 @@ export default function DealflowDetailPage() {
   const [showDocLink, setShowDocLink] = useState(false);
   const [newDocType, setNewDocType] = useState("pitch_deck");
   const [newDocUrl, setNewDocUrl] = useState("");
+  const [showPromoteModal, setShowPromoteModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadEntry = useCallback(() => {
@@ -106,6 +108,7 @@ export default function DealflowDetailPage() {
     try {
       const { company_id } = await dealflowApi.entries.promoteToDealRoom(entryId, true);
       toast.success("Promoted to Deal Room");
+      setShowPromoteModal(false);
       router.push(`/companies/${company_id}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Promote failed";
@@ -232,12 +235,11 @@ export default function DealflowDetailPage() {
         </div>
         {!entry.promoted_company_id && (
           <Button
-            onClick={handlePromote}
-            disabled={promoting}
+            onClick={() => setShowPromoteModal(true)}
             className="gap-1.5"
           >
             <Briefcase className="size-4" />
-            {promoting ? "Promoting…" : "Promote to Deal Room"}
+            Promote to Deal Room
           </Button>
         )}
       </div>
@@ -542,6 +544,16 @@ export default function DealflowDetailPage() {
           ))}
         </ul>
       </div>
+
+      <ConfirmDialog
+        open={showPromoteModal}
+        onOpenChange={setShowPromoteModal}
+        title={`Promote "${entry.name}" to Deal Room?`}
+        description="All dealflow info, founders, and documents will carry over. You can continue diligence from the Deal Room."
+        confirmLabel="Promote"
+        loading={promoting}
+        onConfirm={handlePromote}
+      />
     </div>
   );
 }

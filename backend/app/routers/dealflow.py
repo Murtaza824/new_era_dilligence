@@ -415,6 +415,12 @@ def promote_to_deal_room(
         entry_valuation=entry.valuation,
         amount_raising=entry.amount_raising,
         investment_stage=entry.stage,
+        one_liner=entry.one_liner,
+        location=entry.location,
+        notes=entry.notes,
+        source_type=entry.source_type,
+        source_detail=entry.source_detail,
+        company_linkedin_url=entry.company_linkedin_url,
     )
     db.add(company)
     db.commit()
@@ -439,4 +445,54 @@ def promote_to_deal_room(
             )
             db.add(doc)
         db.commit()
+    # Run matchmaking for newly promoted company
+    try:
+        from app.services.matchmaking import run_matchmaking_for_new_company
+        run_matchmaking_for_new_company(company.id, db, trigger="dealflow_promoted")
+    except Exception as exc:
+        logger.warning("Matchmaking after promote failed: %s", exc)
+
+    # Auto-trigger memo generation if documents were copied and indexed
+    try:
+        from app.models.document import Document as DocModel
+        doc_count = db.query(DocModel).filter(DocModel.company_id == company.id).count()
+        if doc_count > 0:
+            from app.models.agent_job import AgentJob
+            from datetime import datetime, timezone
+            job = AgentJob(
+                type="memo_generate",
+                entity_type="company",
+                entity_id=company.id,
+                status="pending",
+                message="Auto-triggered on promote to Deal Room",
+            )
+            db.add(job)
+            db.commit()
+            db.refresh(job)
+            # Run in background thread so we don't block the response
+            import threading
+            from app.routers.memos import _run_memo_generation_background
+            threading.Thread(target=_run_memo_generation_background, args=(job.id,), daemon=True).start()
+    except Exception as exc:
+        logger.warning("Auto memo generation after promote failed: %s", exc)
+
+    # Seed RAG with dealflow context so agents have it immediately
+    try:
+        context_parts = [f"Company: {entry.name}"]
+        if entry.one_liner:
+            context_parts.append(f"One-liner: {entry.one_liner}")
+        if entry.location:
+            context_parts.append(f"Location: {entry.location}")
+        if entry.notes:
+            context_parts.append(f"Notes: {entry.notes}")
+        founders = db.query(DealflowFounder).filter(DealflowFounder.dealflow_entry_id == entry_id).all()
+        if founders:
+            names = ", ".join(f.name for f in founders)
+            context_parts.append(f"Founders: {names}")
+        if len(context_parts) > 1:
+            from app.services.rag import index_document as rag_index
+            rag_index(company.id, f"dealflow_context_{entry_id}", "\n".join(context_parts))
+    except Exception as exc:
+        logger.warning("RAG context seeding after promote failed: %s", exc)
+
     return PromoteToDealRoomOut(company_id=company.id)

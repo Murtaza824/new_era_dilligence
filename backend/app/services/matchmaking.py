@@ -1,8 +1,10 @@
 """
 Matchmaking: suggest introductions between network contacts and companies/portfolio.
-Runs on contact_added, company_created, portfolio_added.
+Runs on contact_added, company_created, portfolio_added, dealflow_promoted.
+LLM-augmented: when possible, generates richer "why this intro" reasons.
 """
 import logging
+import os
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -17,6 +19,8 @@ logger = logging.getLogger(__name__)
 FUNDRAISING_TAGS = ("lp", "angel", "investor")
 CUSTOMER_SALES_TAGS = ("operator", "bd", "buyer")
 PARTNERSHIP_TAGS = ("partner", "partnership")
+
+USE_LLM_REASONS = bool(os.getenv("OPENAI_API_KEY"))
 
 
 def _normalize_tags(tags: Optional[str]) -> set[str]:
@@ -54,6 +58,31 @@ def _suggestion_exists(
     if target_portfolio_id:
         q = q.filter(ContactIntroductionSuggestion.target_portfolio_id == target_portfolio_id)
     return q.first() is not None
+
+
+def _enrich_reason(
+    contact: NetworkContact,
+    company_name: str,
+    one_liner: Optional[str],
+    introduction_type: str,
+    fallback_reason: str,
+) -> str:
+    """Optionally call LLM insight agent for a richer intro reason."""
+    if not USE_LLM_REASONS:
+        return fallback_reason
+    try:
+        from app.agents.insight_agent import generate_intro_reason
+        return generate_intro_reason(
+            contact_name=contact.name,
+            contact_role=contact.role_or_title,
+            contact_tags=contact.tags,
+            company_name=company_name,
+            one_liner=one_liner,
+            introduction_type=introduction_type,
+        )
+    except Exception as e:
+        logger.warning("LLM intro reason failed, using fallback: %s", e)
+        return fallback_reason
 
 
 def _add_suggestion(
@@ -146,32 +175,37 @@ def run_matchmaking_for_new_contact(contact_id: str, db: Session, trigger: str =
 
 
 def run_matchmaking_for_new_company(company_id: str, db: Session, trigger: str = "company_created") -> int:
-    """After a company is created, suggest intros from network contacts to this company."""
+    """After a company is created/promoted, suggest intros from network contacts to this company."""
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         return 0
     contacts = db.query(NetworkContact).all()
     added = 0
+    one_liner = getattr(company, "one_liner", None)
 
     for contact in contacts:
         if _contact_matches_fundraising(contact) and _company_in_fundraising(company):
+            fallback = f"Company raising ({company.investment_stage or 'stage TBD'}); contact is investor."
+            reason = _enrich_reason(contact, company.name, one_liner, "fundraising", fallback)
             _add_suggestion(
                 db,
                 contact.id,
                 "company",
                 "fundraising",
-                f"Company raising ({company.investment_stage or 'stage TBD'}); contact is investor.",
+                reason,
                 trigger,
                 target_company_id=company.id,
             )
             added += 1
         if _contact_matches_customer_sales(contact):
+            fallback = f"Contact could be customer or channel for {company.name}."
+            reason = _enrich_reason(contact, company.name, one_liner, "customer_sales", fallback)
             _add_suggestion(
                 db,
                 contact.id,
                 "company",
                 "customer_sales",
-                f"Contact could be customer or channel for {company.name}.",
+                reason,
                 trigger,
                 target_company_id=company.id,
             )

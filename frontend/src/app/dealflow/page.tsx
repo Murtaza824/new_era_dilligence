@@ -9,6 +9,7 @@ import { ArrowRight, ExternalLink, Globe, LayoutList, Loader2, Plus, Search, Tra
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { dealflowApi, type DealflowEntryCreateBody, type DealflowEntryUpdateBody } from "@/lib/api";
@@ -63,6 +64,7 @@ export default function DealflowPage() {
   const [editing, setEditing] = useState<{ id: string; field: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [promoteTarget, setPromoteTarget] = useState<DealflowEntry | null>(null);
   const router = useRouter();
 
   const [newName, setNewName] = useState("");
@@ -150,15 +152,21 @@ export default function DealflowPage() {
     }
   };
 
-  const handlePromoteToDealRoom = async (entry: DealflowEntry) => {
+  const handlePromoteToDealRoom = (entry: DealflowEntry) => {
     if (entry.promoted_company_id) {
       router.push(`/companies/${entry.promoted_company_id}`);
       return;
     }
-    setPromotingId(entry.id);
+    setPromoteTarget(entry);
+  };
+
+  const confirmPromote = async () => {
+    if (!promoteTarget) return;
+    setPromotingId(promoteTarget.id);
     try {
-      const { company_id } = await dealflowApi.entries.promoteToDealRoom(entry.id, true);
+      const { company_id } = await dealflowApi.entries.promoteToDealRoom(promoteTarget.id, true);
       toast.success("Promoted to Deal Room");
+      setPromoteTarget(null);
       router.push(`/companies/${company_id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to promote";
@@ -651,6 +659,16 @@ export default function DealflowPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!promoteTarget}
+        onOpenChange={(open) => { if (!open) setPromoteTarget(null); }}
+        title={`Promote "${promoteTarget?.name}" to Deal Room?`}
+        description="All dealflow info, founders, and documents will carry over. You can continue diligence from the Deal Room."
+        confirmLabel="Promote"
+        loading={promotingId === promoteTarget?.id}
+        onConfirm={confirmPromote}
+      />
     </div>
   );
 }

@@ -164,6 +164,54 @@ def _migrate_company_dealflow_entry_id():
             conn.commit()
 
 
+def _migrate_company_dealflow_origin_fields():
+    """Add dealflow-origin fields to companies for continuity on promote."""
+    new_cols = [
+        ("one_liner", "VARCHAR"),
+        ("location", "VARCHAR"),
+        ("notes", "TEXT"),
+        ("source_type", "VARCHAR"),
+        ("source_detail", "VARCHAR"),
+        ("company_linkedin_url", "VARCHAR"),
+    ]
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            r = conn.execute(text("PRAGMA table_info(companies)"))
+            cols = {row[1] for row in r.fetchall()}
+            for col, typ in new_cols:
+                if col not in cols:
+                    conn.execute(text(f"ALTER TABLE companies ADD COLUMN {col} {typ}"))
+                    conn.commit()
+        else:
+            for col, typ in new_cols:
+                conn.execute(text(f"ALTER TABLE companies ADD COLUMN IF NOT EXISTS {col} {typ}"))
+            conn.commit()
+
+
+def _migrate_agent_job_extra_columns():
+    """Add triggered_by_user_id, started_at to agent_jobs if missing."""
+    new_cols = [
+        ("triggered_by_user_id", "VARCHAR"),
+        ("started_at", "DATETIME"),
+    ]
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(agent_jobs)"))
+            except Exception:
+                return
+            cols = {row[1] for row in r.fetchall()}
+            for col, typ in new_cols:
+                if col not in cols:
+                    conn.execute(text(f"ALTER TABLE agent_jobs ADD COLUMN {col} {typ}"))
+                    conn.commit()
+        else:
+            for col, typ in new_cols:
+                pg_type = "TIMESTAMP" if typ == "DATETIME" else typ
+                conn.execute(text(f"ALTER TABLE agent_jobs ADD COLUMN IF NOT EXISTS {col} {pg_type}"))
+            conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
@@ -174,3 +222,5 @@ def init_db():
     _migrate_network_contact_lp_columns()
     _migrate_network_contact_extra_columns()
     _migrate_company_dealflow_entry_id()
+    _migrate_company_dealflow_origin_fields()
+    _migrate_agent_job_extra_columns()

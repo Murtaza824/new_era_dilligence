@@ -230,10 +230,41 @@ def refresh_company_logo(company_id: str, db: Session = Depends(get_db)):
     return _enrich(company, db)
 
 
+@router.get("/{company_id}/insights")
+def get_company_insights(company_id: str, db: Session = Depends(get_db)):
+    """Fetch current events / news insights for a company using the insight agent."""
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    from app.agents.insight_agent import fetch_company_insights
+    return fetch_company_insights(
+        company_name=company.name,
+        one_liner=company.one_liner,
+        sector=company.investment_stage,
+    )
+
+
 def _enrich(company: Company, db: Session) -> dict:
-    """Add computed fields (document_count, has_memo) to company response."""
+    """Add computed fields (document_count, has_memo, dealflow_founders) to company response."""
     doc_count = db.query(Document).filter(Document.company_id == company.id).count()
     has_memo = db.query(Memo).filter(Memo.company_id == company.id).first() is not None
+
+    founders = []
+    if company.dealflow_entry_id:
+        from app.models.dealflow_founder import DealflowFounder
+        founders = [
+            {
+                "id": f.id,
+                "name": f.name,
+                "linkedin_url": f.linkedin_url,
+                "twitter_url": f.twitter_url,
+                "email": f.email,
+            }
+            for f in db.query(DealflowFounder)
+            .filter(DealflowFounder.dealflow_entry_id == company.dealflow_entry_id)
+            .all()
+        ]
+
     return {
         "id": company.id,
         "name": company.name,
@@ -242,8 +273,15 @@ def _enrich(company: Company, db: Session) -> dict:
         "entry_valuation": company.entry_valuation,
         "amount_raising": company.amount_raising,
         "investment_stage": company.investment_stage,
+        "one_liner": company.one_liner,
+        "location": company.location,
+        "notes": company.notes,
+        "source_type": company.source_type,
+        "source_detail": company.source_detail,
+        "company_linkedin_url": company.company_linkedin_url,
         "created_at": company.created_at,
         "updated_at": company.updated_at,
         "document_count": doc_count,
         "has_memo": has_memo,
+        "dealflow_founders": founders,
     }

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { FileText, Globe, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 
+import { GeneratingIndicator } from "@/components/jarvis/generating-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -176,6 +177,12 @@ export function DealTermsTab({ companyId, company, onSaved }: Props) {
           </Button>
         </div>
       </div>
+
+      {(suggestingDocs || suggestingWeb) && (
+        <div className="mt-2">
+          <GeneratingIndicator label={suggestingDocs ? "Analyzing documents…" : "Analyzing website…"} size="sm" />
+        </div>
+      )}
 
       {suggestions && (
         <div className="rounded-xl border border-dashed bg-muted/30 p-4">

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { ArrowLeft, Briefcase, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Briefcase, ExternalLink, Loader2, MapPin, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { CompanyLogo } from "@/components/company-logo";
@@ -109,6 +109,9 @@ export default function CompanyDetailPage() {
             <h1 className="font-display text-3xl font-semibold tracking-tight">
               {company.name}
             </h1>
+            {company.one_liner && (
+              <p className="text-muted-foreground mt-1 text-sm italic">{company.one_liner}</p>
+            )}
             <p className="text-muted-foreground mt-1 text-sm">
               {company.document_count} document{company.document_count !== 1 ? "s" : ""} uploaded
               {company.has_memo && " · Memo generated"}
@@ -119,6 +122,19 @@ export default function CompanyDetailPage() {
                 </>
               )}
             </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              {company.location && (
+                <span className="flex items-center gap-1"><MapPin className="size-3" />{company.location}</span>
+              )}
+              {company.source_type && (
+                <span>Source: {company.source_type}{company.source_detail ? ` — ${company.source_detail}` : ""}</span>
+              )}
+              {company.company_linkedin_url && (
+                <a href={company.company_linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline dark:text-blue-400">
+                  LinkedIn <ExternalLink className="size-3" />
+                </a>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -169,6 +185,36 @@ export default function CompanyDetailPage() {
         </Button>
         </div>
       </div>
+
+      {/* Dealflow context: founders and notes */}
+      {(company.dealflow_founders.length > 0 || company.notes) && (
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {company.dealflow_founders.length > 0 && (
+            <div className="rounded-xl border bg-card p-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Founders</h3>
+              <ul className="space-y-1.5">
+                {company.dealflow_founders.map((f) => (
+                  <li key={f.id} className="flex items-center gap-2 text-sm">
+                    <span className="font-medium">{f.name}</span>
+                    {f.linkedin_url && (
+                      <a href={f.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400 text-xs">LinkedIn</a>
+                    )}
+                    {f.email && (
+                      <a href={`mailto:${f.email}`} className="text-muted-foreground text-xs">{f.email}</a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {company.notes && (
+            <div className="rounded-xl border bg-card p-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</h3>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{company.notes}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab navigation */}
       <div className="mb-6 flex gap-1 rounded-lg border bg-muted p-1">

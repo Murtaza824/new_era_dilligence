@@ -17,6 +17,8 @@ class AgentJob(Base):
     status = Column(String, nullable=False, default="pending")  # pending | running | completed | failed
     message = Column(String, nullable=True)  # optional progress e.g. "Section 3/9"
     error = Column(Text, nullable=True)
+    triggered_by_user_id = Column(String, nullable=True)
+    started_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
         DateTime,

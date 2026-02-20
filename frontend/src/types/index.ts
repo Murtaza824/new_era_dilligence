@@ -9,9 +9,13 @@ export interface AgentJob {
   message: string | null;
   error: string | null;
   created_at: string;
+  started_at: string | null;
   completed_at: string | null;
   updated_at: string;
   entity_label: string | null;
+  triggered_by_user_id: string | null;
+  triggered_by_user_email: string | null;
+  duration_seconds: number | null;
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────
@@ -29,6 +33,14 @@ export interface TokenResponse {
 
 // ── Backend data types matching Pydantic schemas ─────────────────────────
 
+export interface DealflowFounderBrief {
+  id: string;
+  name: string;
+  linkedin_url: string | null;
+  twitter_url: string | null;
+  email: string | null;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -37,10 +49,17 @@ export interface Company {
   entry_valuation: number | null;
   amount_raising: number | null;
   investment_stage: string | null;
+  one_liner: string | null;
+  location: string | null;
+  notes: string | null;
+  source_type: string | null;
+  source_detail: string | null;
+  company_linkedin_url: string | null;
   created_at: string;
   updated_at: string;
   document_count: number;
   has_memo: boolean;
+  dealflow_founders: DealflowFounderBrief[];
 }
 
 export interface DealSuggestions {
