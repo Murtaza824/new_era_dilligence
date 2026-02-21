@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -332,8 +333,9 @@ export default function NetworkPage() {
                 <option value="syndicate">Syndicate</option>
                 <option value="interested">Interested LP</option>
               </select>
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+              <label htmlFor="warm-filter-cb" className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
                 <Checkbox
+                  id="warm-filter-cb"
                   checked={warmFilter}
                   onCheckedChange={(v) => setWarmFilter(v === true)}
                 />
@@ -414,15 +416,17 @@ export default function NetworkPage() {
                     className="sm:col-span-2"
                   />
                   <div className="sm:col-span-2 flex flex-wrap items-center gap-6">
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <label htmlFor="new-contact-nev-fund-lp" className="flex items-center gap-2 text-sm cursor-pointer">
                       <Checkbox
+                        id="new-contact-nev-fund-lp"
                         checked={newNevFundILp}
                         onCheckedChange={(v) => setNewNevFundILp(v === true)}
                       />
                       NEV Fund I LP
                     </label>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <label htmlFor="new-contact-nev-syndicate-lp" className="flex items-center gap-2 text-sm cursor-pointer">
                       <Checkbox
+                        id="new-contact-nev-syndicate-lp"
                         checked={newNevSyndicateLp}
                         onCheckedChange={(v) => setNewNevSyndicateLp(v === true)}
                       />
@@ -498,10 +502,13 @@ export default function NetworkPage() {
                           <td className="p-2">
                             <div className="flex items-center gap-2.5">
                               {c.profile_pic_url ? (
-                                <img
+                                <Image
                                   src={c.profile_pic_url}
                                   alt=""
+                                  width={32}
+                                  height={32}
                                   className="size-8 rounded-full object-cover shrink-0"
+                                  unoptimized
                                 />
                               ) : (
                                 <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary shrink-0">

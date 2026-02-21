@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+/* eslint-disable jsx-a11y/no-autofocus */
+import { useCallback, useEffect, useState } from "react";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
@@ -73,7 +75,7 @@ export default function NetworkContactDetailPage() {
       loadContact();
       networkApi.getRelationshipManagers().then(setRms).catch(() => {});
     }
-  }, [authLoading, user, loadContact]);
+  }, [authLoading, user, loadContact, router]);
 
   const save = async (field: string, value: unknown) => {
     setEditing(null);
@@ -147,10 +149,13 @@ export default function NetworkContactDetailPage() {
       <div className="rounded-xl border bg-card p-6 mb-6">
         <div className="flex items-start gap-5">
           {contact.profile_pic_url ? (
-            <img
+            <Image
               src={contact.profile_pic_url}
               alt=""
+              width={80}
+              height={80}
               className="size-20 rounded-full object-cover shrink-0"
+              unoptimized
             />
           ) : (
             <span className="flex size-20 items-center justify-center rounded-full bg-primary/10 text-2xl font-semibold text-primary shrink-0">
@@ -628,12 +633,11 @@ function EditableField({
 /* ── Toggleable status badge ────────────────────────────────────────────── */
 
 function StatusBadge({
-  active,
   label,
   color,
   onClick,
 }: {
-  active: boolean;
+  active?: boolean;
   label: string;
   color: "green" | "blue" | "purple" | "orange" | "gray";
   onClick: () => void;
