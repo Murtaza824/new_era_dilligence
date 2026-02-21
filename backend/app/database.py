@@ -262,6 +262,29 @@ def _migrate_network_contact_expanded_fields():
             conn.commit()
 
 
+def _migrate_intro_suggestion_dealflow():
+    """Add target_dealflow_entry_id to contact_introduction_suggestions if missing."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(contact_introduction_suggestions)"))
+            except Exception:
+                return
+            cols = {row[1] for row in r.fetchall()}
+            if "target_dealflow_entry_id" not in cols:
+                conn.execute(
+                    text("ALTER TABLE contact_introduction_suggestions ADD COLUMN target_dealflow_entry_id VARCHAR")
+                )
+                conn.commit()
+        else:
+            conn.execute(
+                text(
+                    "ALTER TABLE contact_introduction_suggestions ADD COLUMN IF NOT EXISTS target_dealflow_entry_id VARCHAR REFERENCES dealflow_entries(id)"
+                )
+            )
+            conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
@@ -275,3 +298,4 @@ def init_db():
     _migrate_company_dealflow_entry_id()
     _migrate_company_dealflow_origin_fields()
     _migrate_agent_job_extra_columns()
+    _migrate_intro_suggestion_dealflow()

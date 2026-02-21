@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.models.company import Company
+from app.services.matchmaking import run_matchmaking_for_dealflow_entry
 from app.models.dealflow_document import DealflowDocument
 from app.models.dealflow_entry import DealflowEntry
 from app.models.dealflow_founder import DealflowFounder
@@ -114,6 +115,7 @@ def create_entry(
     db.refresh(entry)
     if body.founders:
         _set_founders(entry.id, body.founders, db)
+    run_matchmaking_for_dealflow_entry(entry.id, db, trigger="dealflow_entry_created")
     return _entry_to_out(entry, db)
 
 
@@ -177,6 +179,7 @@ def update_entry(
     db.refresh(entry)
     if founders is not None:
         _set_founders(entry_id, [DealflowFounderCreate(**f) for f in founders], db)
+    run_matchmaking_for_dealflow_entry(entry.id, db, trigger="dealflow_entry_updated")
     return _entry_to_out(entry, db)
 
 

@@ -12,9 +12,10 @@ class ContactIntroductionSuggestion(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     network_contact_id = Column(String, ForeignKey("network_contacts.id"), nullable=False)
-    target_type = Column(String, nullable=False)  # "company" | "portfolio"
+    target_type = Column(String, nullable=False)  # "company" | "portfolio" | "dealflow"
     target_company_id = Column(String, ForeignKey("companies.id"), nullable=True)
     target_portfolio_id = Column(String, ForeignKey("portfolio_snapshots.id"), nullable=True)
+    target_dealflow_entry_id = Column(String, ForeignKey("dealflow_entries.id"), nullable=True)
     introduction_type = Column(String, nullable=False)  # fundraising | customer_sales | partnership | other
     reason_summary = Column(Text, nullable=True)
     status = Column(String, nullable=False, default="suggested")  # suggested | introduced | dismissed

@@ -402,12 +402,13 @@ export const networkApi = {
     },
   },
   suggestions: {
-    list: (params?: { status?: string; contact_id?: string; company_id?: string; portfolio_id?: string }) => {
+    list: (params?: { status?: string; contact_id?: string; company_id?: string; portfolio_id?: string; dealflow_entry_id?: string }) => {
       const sp = new URLSearchParams();
       if (params?.status) sp.set("status", params.status);
       if (params?.contact_id) sp.set("contact_id", params.contact_id);
       if (params?.company_id) sp.set("company_id", params.company_id);
       if (params?.portfolio_id) sp.set("portfolio_id", params.portfolio_id);
+      if (params?.dealflow_entry_id) sp.set("dealflow_entry_id", params.dealflow_entry_id);
       const query = sp.toString();
       return request<IntroductionSuggestion[]>(`/network/suggestions${query ? `?${query}` : ""}`);
     },

@@ -262,9 +262,10 @@ export interface NetworkContact {
 export interface IntroductionSuggestion {
   id: string;
   network_contact_id: string;
-  target_type: "company" | "portfolio";
+  target_type: "company" | "portfolio" | "dealflow";
   target_company_id: string | null;
   target_portfolio_id: string | null;
+  target_dealflow_entry_id: string | null;
   introduction_type: string;
   reason_summary: string | null;
   status: "suggested" | "introduced" | "dismissed";
@@ -274,6 +275,7 @@ export interface IntroductionSuggestion {
   contact_name: string | null;
   target_company_name: string | null;
   target_portfolio_name: string | null;
+  target_dealflow_entry_name: string | null;
 }
 
 // ── Dealflow ────────────────────────────────────────────────────────────────

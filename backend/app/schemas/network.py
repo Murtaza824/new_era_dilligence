@@ -117,6 +117,7 @@ class IntroductionSuggestionOut(BaseModel):
     target_type: str
     target_company_id: Optional[str] = None
     target_portfolio_id: Optional[str] = None
+    target_dealflow_entry_id: Optional[str] = None
     introduction_type: str
     reason_summary: Optional[str] = None
     status: str
@@ -127,5 +128,6 @@ class IntroductionSuggestionOut(BaseModel):
     contact_name: Optional[str] = None
     target_company_name: Optional[str] = None
     target_portfolio_name: Optional[str] = None
+    target_dealflow_entry_name: Optional[str] = None
 
     model_config = {"from_attributes": True}

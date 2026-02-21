@@ -9,10 +9,12 @@ import { useParams, useRouter } from "next/navigation";
 
 import {
   ArrowLeft,
+  Check,
   Linkedin,
   Mail,
   Phone,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -21,7 +23,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { networkApi, type RelationshipManager } from "@/lib/api";
-import type { NetworkContact } from "@/types";
+import type { IntroductionSuggestion, NetworkContact } from "@/types";
 
 function relationshipManagerLabel(email: string): string {
   const lower = email.toLowerCase();
@@ -36,6 +38,19 @@ function initialsFromName(name: string): string {
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+function introTypeLabel(t: string): string {
+  switch (t) {
+    case "fundraising":
+      return "Fundraising";
+    case "customer_sales":
+      return "Customer / Sales";
+    case "partnership":
+      return "Partnership";
+    default:
+      return t || "Other";
+  }
 }
 
 type EditingField = string | null;
@@ -53,6 +68,8 @@ export default function NetworkContactDetailPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [rms, setRms] = useState<RelationshipManager[]>([]);
+  const [contactSuggestions, setContactSuggestions] = useState<IntroductionSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   const loadContact = useCallback(() => {
     networkApi.contacts
@@ -76,6 +93,37 @@ export default function NetworkContactDetailPage() {
       networkApi.getRelationshipManagers().then(setRms).catch(() => {});
     }
   }, [authLoading, user, loadContact, router]);
+
+  const loadContactSuggestions = useCallback(() => {
+    setLoadingSuggestions(true);
+    networkApi.suggestions
+      .list({ contact_id: contactId })
+      .then(setContactSuggestions)
+      .catch(() => setContactSuggestions([]))
+      .finally(() => setLoadingSuggestions(false));
+  }, [contactId]);
+
+  useEffect(() => {
+    if (contactId && user) loadContactSuggestions();
+  }, [contactId, user, loadContactSuggestions]);
+
+  // Scroll to intro-suggestions when hash is present
+  useEffect(() => {
+    if (typeof window === "undefined" || !contact) return;
+    if (window.location.hash === "#intro-suggestions") {
+      document.getElementById("intro-suggestions")?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [contact]);
+
+  const handleSuggestionStatus = async (id: string, status: "introduced" | "dismissed") => {
+    try {
+      await networkApi.suggestions.updateStatus(id, status);
+      loadContactSuggestions();
+      toast.success(status === "introduced" ? "Marked as introduced" : "Dismissed");
+    } catch {
+      toast.error("Failed to update");
+    }
+  };
 
   const save = async (field: string, value: unknown) => {
     setEditing(null);
@@ -511,6 +559,90 @@ export default function NetworkContactDetailPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Suggested introductions (from agent) */}
+        <div id="intro-suggestions" className="md:col-span-2 rounded-xl border bg-card p-5 space-y-4 scroll-mt-6">
+          <h2 className="font-semibold text-lg">Suggested introductions</h2>
+          <p className="text-muted-foreground text-sm">
+            Intros the agent suggests for this contact — to companies in Deal Room, portfolio, or dealflow.
+          </p>
+          {loadingSuggestions ? (
+            <p className="text-muted-foreground text-sm">Loading…</p>
+          ) : contactSuggestions.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No suggested introductions for this contact.</p>
+          ) : (
+            <ul className="divide-y divide-border rounded-lg border">
+              {contactSuggestions.map((s) => (
+                <li key={s.id} className="p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-sm">
+                        Introduce {contact.name} to{" "}
+                        {s.target_type === "company" && s.target_company_id ? (
+                          <Link
+                            href={`/dealroom/${s.target_company_id}`}
+                            className="text-primary hover:underline"
+                          >
+                            {s.target_company_name ?? "Company"}
+                          </Link>
+                        ) : s.target_type === "portfolio" && s.target_portfolio_id ? (
+                          <Link
+                            href={`/portfolio/${s.target_portfolio_id}`}
+                            className="text-primary hover:underline"
+                          >
+                            {s.target_portfolio_name ?? "Portfolio"}
+                          </Link>
+                        ) : s.target_type === "dealflow" && s.target_dealflow_entry_id ? (
+                          <Link
+                            href={`/dealflow/${s.target_dealflow_entry_id}`}
+                            className="text-primary hover:underline"
+                          >
+                            {s.target_dealflow_entry_name ?? "Dealflow"}
+                          </Link>
+                        ) : (
+                          <span>
+                            {s.target_company_name ??
+                              s.target_portfolio_name ??
+                              s.target_dealflow_entry_name ??
+                              "—"}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-muted-foreground text-xs mt-0.5">
+                        {introTypeLabel(s.introduction_type)}
+                        {s.reason_summary && ` · ${s.reason_summary}`}
+                      </p>
+                      <span className="text-muted-foreground text-xs">
+                        {s.status}
+                        {s.created_by_trigger && ` · ${s.created_by_trigger.replace(/_/g, " ")}`}
+                      </span>
+                    </div>
+                    {s.status === "suggested" && (
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSuggestionStatus(s.id, "introduced")}
+                        >
+                          <Check className="mr-1 size-3.5" />
+                          Introduced
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleSuggestionStatus(s.id, "dismissed")}
+                        >
+                          <X className="mr-1 size-3.5" />
+                          Dismiss
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Related Companies */}

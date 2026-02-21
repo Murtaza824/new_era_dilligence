@@ -142,6 +142,17 @@ export default function NetworkPage() {
     )
   ).sort();
 
+  // Count of suggested introductions per contact (from agent suggestions)
+  const suggestionCountByContactId = (() => {
+    const map: Record<string, number> = {};
+    for (const s of suggestions) {
+      if (s.status !== "suggested") continue;
+      const id = s.network_contact_id;
+      map[id] = (map[id] ?? 0) + 1;
+    }
+    return map;
+  })();
+
   // Apply client-side filters
   const filteredContacts = contacts.filter((c) => {
     if (roleFilter && c.role_or_title !== roleFilter) return false;
@@ -571,10 +582,20 @@ export default function NetworkPage() {
                               )}
                             </div>
                           </td>
-                          <td className="p-2 text-center">
-                            <span className="text-muted-foreground text-xs tabular-nums">
-                              {c.intros_made_for_us} / {c.intros_we_made}
-                            </span>
+                          <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                            {(() => {
+                              const count = suggestionCountByContactId[c.id] ?? 0;
+                              return count > 0 ? (
+                                <Link
+                                  href={`/network/${c.id}#intro-suggestions`}
+                                  className="text-primary font-medium text-xs tabular-nums hover:underline"
+                                >
+                                  {count}
+                                </Link>
+                              ) : (
+                                <span className="text-muted-foreground text-xs tabular-nums">0</span>
+                              );
+                            })()}
                           </td>
                           <td className="p-2">
                             <div
@@ -682,9 +703,19 @@ export default function NetworkPage() {
                               >
                                 {s.target_portfolio_name ?? "Portfolio"}
                               </Link>
+                            ) : s.target_type === "dealflow" && s.target_dealflow_entry_id ? (
+                              <Link
+                                href={`/dealflow/${s.target_dealflow_entry_id}`}
+                                className="text-primary hover:underline"
+                              >
+                                {s.target_dealflow_entry_name ?? "Dealflow"}
+                              </Link>
                             ) : (
                               <span>
-                                {s.target_company_name ?? s.target_portfolio_name ?? "—"}
+                                {s.target_company_name ??
+                                  s.target_portfolio_name ??
+                                  s.target_dealflow_entry_name ??
+                                  "—"}
                               </span>
                             )}
                           </p>

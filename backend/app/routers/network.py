@@ -14,6 +14,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models.company import Company
 from app.models.contact_introduction_suggestion import ContactIntroductionSuggestion
+from app.models.dealflow_entry import DealflowEntry
 from app.models.network_contact import NetworkContact
 from app.models.portfolio import PortfolioSnapshot
 from app.models.user import User
@@ -366,6 +367,7 @@ def _enrich_suggestion(s: ContactIntroductionSuggestion, db: Session) -> dict:
         "target_type": s.target_type,
         "target_company_id": s.target_company_id,
         "target_portfolio_id": s.target_portfolio_id,
+        "target_dealflow_entry_id": getattr(s, "target_dealflow_entry_id", None),
         "introduction_type": s.introduction_type,
         "reason_summary": s.reason_summary,
         "status": s.status,
@@ -375,6 +377,7 @@ def _enrich_suggestion(s: ContactIntroductionSuggestion, db: Session) -> dict:
         "contact_name": None,
         "target_company_name": None,
         "target_portfolio_name": None,
+        "target_dealflow_entry_name": None,
     }
     contact = db.query(NetworkContact).filter(NetworkContact.id == s.network_contact_id).first()
     if contact:
@@ -387,6 +390,10 @@ def _enrich_suggestion(s: ContactIntroductionSuggestion, db: Session) -> dict:
         p = db.query(PortfolioSnapshot).filter(PortfolioSnapshot.id == s.target_portfolio_id).first()
         if p:
             out["target_portfolio_name"] = p.company_name
+    if getattr(s, "target_dealflow_entry_id", None):
+        d = db.query(DealflowEntry).filter(DealflowEntry.id == s.target_dealflow_entry_id).first()
+        if d:
+            out["target_dealflow_entry_name"] = d.name
     return out
 
 
@@ -397,6 +404,7 @@ def list_suggestions(
     contact_id: Optional[str] = Query(None, description="Filter by network_contact_id"),
     company_id: Optional[str] = Query(None, description="Filter by target company"),
     portfolio_id: Optional[str] = Query(None, description="Filter by target portfolio"),
+    dealflow_entry_id: Optional[str] = Query(None, description="Filter by target dealflow entry"),
 ):
     query = db.query(ContactIntroductionSuggestion)
     if status_filter:
@@ -407,6 +415,10 @@ def list_suggestions(
         query = query.filter(ContactIntroductionSuggestion.target_company_id == company_id)
     if portfolio_id:
         query = query.filter(ContactIntroductionSuggestion.target_portfolio_id == portfolio_id)
+    if dealflow_entry_id:
+        query = query.filter(
+            ContactIntroductionSuggestion.target_dealflow_entry_id == dealflow_entry_id
+        )
     suggestions = query.order_by(ContactIntroductionSuggestion.created_at.desc()).all()
     return [_enrich_suggestion(s, db) for s in suggestions]
 
