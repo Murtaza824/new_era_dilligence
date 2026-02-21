@@ -58,7 +58,7 @@ export default function CompanyDetailPage() {
     companiesApi
       .get(companyId)
       .then(setCompany)
-      .catch(() => router.push("/companies"))
+      .catch(() => router.push("/dealroom"))
       .finally(() => setLoading(false));
   }, [companyId, router]);
 
@@ -94,7 +94,7 @@ export default function CompanyDetailPage() {
     <div className="container mx-auto max-w-5xl px-6 pt-10 pb-20">
       {/* Back link */}
       <Link
-        href="/companies"
+        href="/dealroom"
         className="text-muted-foreground hover:text-foreground mb-6 inline-flex items-center gap-1.5 text-sm transition-colors"
       >
         <ArrowLeft className="size-4" />

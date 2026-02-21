@@ -212,6 +212,56 @@ def _migrate_agent_job_extra_columns():
             conn.commit()
 
 
+def _migrate_network_contact_expanded_fields():
+    """Add expanded Airtable fields to network_contacts if missing."""
+    new_cols = [
+        ("profile_pic_url", "VARCHAR"),
+        ("related_companies", "TEXT"),
+        ("stage", "VARCHAR"),
+        ("vc_firm_name", "VARCHAR"),
+        ("startup_name", "VARCHAR"),
+        ("investor_check_size", "VARCHAR"),
+        ("introductions_made", "TEXT"),
+        ("introduced_us_to", "TEXT"),
+        ("interested_lp", "BOOLEAN", "DEFAULT 0", "DEFAULT FALSE"),
+        ("investor_in", "TEXT"),
+        ("warm", "BOOLEAN", "DEFAULT 0", "DEFAULT FALSE"),
+        ("syndicate_member", "BOOLEAN", "DEFAULT 0", "DEFAULT FALSE"),
+        ("quarterly_update_list", "BOOLEAN", "DEFAULT 0", "DEFAULT FALSE"),
+        ("notes_2", "TEXT"),
+        ("intros_made_for_us", "INTEGER", "DEFAULT 0", "DEFAULT 0"),
+        ("intros_we_made", "INTEGER", "DEFAULT 0", "DEFAULT 0"),
+        ("check_sizes", "VARCHAR"),
+    ]
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(network_contacts)"))
+            except Exception:
+                return
+            cols = {row[1] for row in r.fetchall()}
+            for entry in new_cols:
+                col = entry[0]
+                typ = entry[1]
+                default = entry[2] if len(entry) > 2 else ""
+                if col not in cols:
+                    sql = f"ALTER TABLE network_contacts ADD COLUMN {col} {typ}"
+                    if default:
+                        sql += f" {default}"
+                    conn.execute(text(sql))
+                    conn.commit()
+        else:
+            for entry in new_cols:
+                col = entry[0]
+                typ = entry[1]
+                default = entry[3] if len(entry) > 3 else (entry[2] if len(entry) > 2 else "")
+                sql = f"ALTER TABLE network_contacts ADD COLUMN IF NOT EXISTS {col} {typ}"
+                if default:
+                    sql += f" {default}"
+                conn.execute(text(sql))
+            conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
@@ -221,6 +271,7 @@ def init_db():
     _migrate_document_file_columns()
     _migrate_network_contact_lp_columns()
     _migrate_network_contact_extra_columns()
+    _migrate_network_contact_expanded_fields()
     _migrate_company_dealflow_entry_id()
     _migrate_company_dealflow_origin_fields()
     _migrate_agent_job_extra_columns()

@@ -375,7 +375,7 @@ export const networkApi = {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    update: (id: string, body: Partial<Pick<NetworkContact, "name" | "email" | "phone_number" | "location" | "company_name" | "role_or_title" | "linkedin_url" | "skills" | "notes" | "tags">>) =>
+    update: (id: string, body: Partial<Omit<NetworkContact, "id" | "added_by_user_id" | "created_at" | "updated_at">>) =>
       request<NetworkContact>(`/network/contacts/${id}`, {
         method: "PATCH",
         body: JSON.stringify(body),

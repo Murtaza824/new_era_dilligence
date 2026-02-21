@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { label: "Dealflow", href: "/dealflow", icon: LayoutList },
-  { label: "Deal Room", href: "/companies", icon: Building2 },
+  { label: "Deal Room", href: "/dealroom", icon: Building2 },
   { label: "Portfolio", href: "/portfolio", icon: Briefcase },
   { label: "Network", href: "/network", icon: Users },
 ];
@@ -29,8 +29,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
 
   // Derive context for chat panel from current route
-  const chatContextType = pathname.startsWith("/companies/") ? "company" : undefined;
-  const chatContextId = pathname.startsWith("/companies/") ? pathname.split("/")[2] : undefined;
+  const chatContextType = pathname.startsWith("/dealroom/") ? "company" : undefined;
+  const chatContextId = pathname.startsWith("/dealroom/") ? pathname.split("/")[2] : undefined;
 
   useEffect(() => {
     const open = () => setActivityPanelOpen(true);
@@ -48,7 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between pl-3 pr-6">
           {/* Logo + branding */}
           <Link
-            href={user ? "/companies" : "/"}
+            href={user ? "/dealroom" : "/"}
             className="flex items-baseline gap-2 font-display tracking-tight"
           >
             <span className="text-muted-foreground text-sm font-medium">

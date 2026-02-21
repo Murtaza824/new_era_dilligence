@@ -2,6 +2,7 @@
 import csv
 import io
 import logging
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -77,6 +78,23 @@ def create_contact(
         nev_fund_i_lp=body.nev_fund_i_lp or False,
         nev_syndicate_lp=body.nev_syndicate_lp or False,
         added_by_user_id=added_by,
+        profile_pic_url=body.profile_pic_url,
+        related_companies=body.related_companies,
+        stage=body.stage,
+        vc_firm_name=body.vc_firm_name,
+        startup_name=body.startup_name,
+        investor_check_size=body.investor_check_size,
+        introductions_made=body.introductions_made,
+        introduced_us_to=body.introduced_us_to,
+        interested_lp=body.interested_lp or False,
+        investor_in=body.investor_in,
+        warm=body.warm or False,
+        syndicate_member=body.syndicate_member or False,
+        quarterly_update_list=body.quarterly_update_list or False,
+        notes_2=body.notes_2,
+        intros_made_for_us=body.intros_made_for_us or 0,
+        intros_we_made=body.intros_we_made or 0,
+        check_sizes=body.check_sizes,
     )
     db.add(contact)
     db.commit()
@@ -101,6 +119,7 @@ CSV_COLUMN_MAP = {
     "geography": "location",
     "company": "company_name",
     "company name": "company_name",
+    "current company": "company_name",
     "organization": "company_name",
     "title": "role_or_title",
     "role": "role_or_title",
@@ -109,23 +128,74 @@ CSV_COLUMN_MAP = {
     "linkedin url": "linkedin_url",
     "linkedin_url": "linkedin_url",
     "skills": "skills",
+    "skills / expertise / interests": "skills",
     "notes": "notes",
     "note": "notes",
     "tags": "tags",
     "tag": "tags",
+    # Extended Airtable fields
+    "profile pic": "profile_pic_url",
+    "related companies (previous)": "related_companies",
+    "stage": "stage",
+    "vc firm name": "vc_firm_name",
+    "startup name": "startup_name",
+    "investor check size ($)": "investor_check_size",
+    "introductions made": "introductions_made",
+    "introduced us to (pipeline)": "introduced_us_to",
+    "ne lp": "nev_fund_i_lp",
+    "interested lp": "interested_lp",
+    "investor in": "investor_in",
+    "warm?": "warm",
+    "syndicate member": "syndicate_member",
+    "quarterly update list": "quarterly_update_list",
+    "notes 2": "notes_2",
+    "number of intros made for us": "intros_made_for_us",
+    "number of intros we made": "intros_we_made",
+    "check sizes": "check_sizes",
+    # Relationship Manager is handled separately
+    "relationship manager": "_relationship_manager",
 }
 
+_BOOLEAN_FIELDS = {
+    "nev_fund_i_lp", "interested_lp", "warm",
+    "syndicate_member", "quarterly_update_list",
+}
+_INTEGER_FIELDS = {"intros_made_for_us", "intros_we_made"}
 
-def _normalize_csv_row(headers: list[str], row: list[str]) -> dict:
+
+def _parse_csv_value(field: str, raw: str) -> object:
+    """Convert a raw CSV string to the appropriate Python type for the given field."""
+    if field in _BOOLEAN_FIELDS:
+        return raw.lower() in ("checked", "true", "yes", "1")
+    if field in _INTEGER_FIELDS:
+        try:
+            return int(raw)
+        except (ValueError, TypeError):
+            return 0
+    if field == "profile_pic_url":
+        m = re.search(r"\((.+?)\)", raw)
+        return m.group(1) if m else raw
+    return raw
+
+
+def _normalize_csv_row(headers: list[str], row: list[str], user_map: dict[str, str] | None = None) -> dict:
     """Map CSV row to dict of NetworkContact fields using CSV_COLUMN_MAP."""
-    out = {}
+    out: dict = {}
     for i, raw_header in enumerate(headers):
         if i >= len(row):
             break
         key = (raw_header or "").strip().lower()
         field = CSV_COLUMN_MAP.get(key)
-        if field and (row[i] or "").strip():
-            out[field] = (row[i] or "").strip()
+        val = (row[i] or "").strip()
+        if not field or not val:
+            continue
+        if field == "_relationship_manager":
+            if user_map:
+                resolved = user_map.get(val.lower())
+                if resolved:
+                    out["added_by_user_id"] = resolved
+            continue
+        out[field] = _parse_csv_value(field, val)
     return out
 
 
@@ -162,13 +232,23 @@ def import_contacts_csv(
     skipped = 0
     errors = []
     added_by = current_user.id
+
+    # Build name->user_id map for Relationship Manager resolution
+    all_users = db.query(User).all()
+    user_map: dict[str, str] = {}
+    for u in all_users:
+        user_map[u.email.lower()] = u.id
+        name_part = u.email.split("@")[0].replace(".", " ").lower()
+        user_map[name_part] = u.id
+
     for idx, row in enumerate(rows[1:], start=2):
         try:
-            mapped = _normalize_csv_row(headers, row)
-            name = (mapped.get("name") or "").strip()
+            mapped = _normalize_csv_row(headers, row, user_map=user_map)
+            name = (mapped.get("name") or "").strip() if isinstance(mapped.get("name"), str) else ""
             if not name:
                 skipped += 1
                 continue
+            row_added_by = mapped.pop("added_by_user_id", None) or added_by
             contact = NetworkContact(
                 name=name,
                 email=mapped.get("email"),
@@ -180,9 +260,26 @@ def import_contacts_csv(
                 skills=mapped.get("skills"),
                 notes=mapped.get("notes"),
                 tags=mapped.get("tags"),
-                nev_fund_i_lp=False,
-                nev_syndicate_lp=False,
-                added_by_user_id=added_by,
+                nev_fund_i_lp=mapped.get("nev_fund_i_lp", False),
+                nev_syndicate_lp=mapped.get("nev_syndicate_lp", False),
+                added_by_user_id=row_added_by,
+                profile_pic_url=mapped.get("profile_pic_url"),
+                related_companies=mapped.get("related_companies"),
+                stage=mapped.get("stage"),
+                vc_firm_name=mapped.get("vc_firm_name"),
+                startup_name=mapped.get("startup_name"),
+                investor_check_size=mapped.get("investor_check_size"),
+                introductions_made=mapped.get("introductions_made"),
+                introduced_us_to=mapped.get("introduced_us_to"),
+                interested_lp=mapped.get("interested_lp", False),
+                investor_in=mapped.get("investor_in"),
+                warm=mapped.get("warm", False),
+                syndicate_member=mapped.get("syndicate_member", False),
+                quarterly_update_list=mapped.get("quarterly_update_list", False),
+                notes_2=mapped.get("notes_2"),
+                intros_made_for_us=mapped.get("intros_made_for_us", 0),
+                intros_we_made=mapped.get("intros_we_made", 0),
+                check_sizes=mapped.get("check_sizes"),
             )
             db.add(contact)
             db.flush()

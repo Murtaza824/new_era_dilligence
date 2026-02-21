@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
-  { label: "Companies", href: "/companies" },
+  { label: "Deal Room", href: "/dealroom" },
   { label: "Portfolio", href: "/portfolio" },
   {
     label: "Features",

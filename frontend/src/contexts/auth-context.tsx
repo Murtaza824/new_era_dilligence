@@ -23,7 +23,7 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const PROTECTED_PATHS = ["/companies", "/portfolio"];
+const PROTECTED_PATHS = ["/dealroom", "/portfolio"];
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PATHS.some(

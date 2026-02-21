@@ -226,7 +226,7 @@ export default function PortfolioDetailPage() {
           </div>
         </div>
         {entry.company_id && (
-          <Link href={`/companies/${entry.company_id}`}>
+          <Link href={`/dealroom/${entry.company_id}`}>
             <Button variant="outline" size="sm">
               <FileText className="mr-1.5 size-4" />
               View Diligence
@@ -291,7 +291,7 @@ export default function PortfolioDetailPage() {
         <div className="text-muted-foreground mb-8 rounded-xl border border-dashed bg-muted/30 p-6 text-center text-sm">
           No overview yet.{" "}
           <Link
-            href={`/companies/${entry.company_id}`}
+            href={`/dealroom/${entry.company_id}`}
             className="font-medium text-blue-600 hover:underline dark:text-blue-400"
           >
             Link to company & generate memo
@@ -320,7 +320,7 @@ export default function PortfolioDetailPage() {
                   {memo.sections?.[0]?.content?.slice(0, 200)}…
                 </p>
                 <Link
-                  href={`/companies/${entry.company_id}`}
+                  href={`/dealroom/${entry.company_id}`}
                   className="mt-2 inline-block text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
                 >
                   Read full memo →
@@ -330,7 +330,7 @@ export default function PortfolioDetailPage() {
               <p className="text-muted-foreground text-sm">
                 No memo generated yet.{" "}
                 <Link
-                  href={`/companies/${entry.company_id}`}
+                  href={`/dealroom/${entry.company_id}`}
                   className="text-blue-600 hover:underline dark:text-blue-400"
                 >
                   Generate one →
@@ -500,7 +500,7 @@ export default function PortfolioDetailPage() {
                 </div>
                 {entry.company_id && (
                   <Link
-                    href={`/companies/${entry.company_id}`}
+                    href={`/dealroom/${entry.company_id}`}
                     className="mt-1 inline-block text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
                   >
                     View full simulation →

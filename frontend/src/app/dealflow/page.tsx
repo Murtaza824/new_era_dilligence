@@ -154,7 +154,7 @@ export default function DealflowPage() {
 
   const handlePromoteToDealRoom = (entry: DealflowEntry) => {
     if (entry.promoted_company_id) {
-      router.push(`/companies/${entry.promoted_company_id}`);
+      router.push(`/dealroom/${entry.promoted_company_id}`);
       return;
     }
     setPromoteTarget(entry);
@@ -167,7 +167,7 @@ export default function DealflowPage() {
       const { company_id } = await dealflowApi.entries.promoteToDealRoom(promoteTarget.id, true);
       toast.success("Promoted to Deal Room");
       setPromoteTarget(null);
-      router.push(`/companies/${company_id}`);
+      router.push(`/dealroom/${company_id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to promote";
       toast.error(message);
@@ -423,7 +423,7 @@ export default function DealflowPage() {
                       </Link>
                       {e.promoted_company_id && (
                         <Link
-                          href={`/companies/${e.promoted_company_id}`}
+                          href={`/dealroom/${e.promoted_company_id}`}
                           className="rounded bg-green-500/15 px-1.5 py-0.5 text-xs text-green-700 dark:text-green-400 hover:underline shrink-0"
                         >
                           In Deal Room

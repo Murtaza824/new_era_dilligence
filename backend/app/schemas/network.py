@@ -17,7 +17,24 @@ class NetworkContactCreate(BaseModel):
     tags: Optional[str] = None
     nev_fund_i_lp: Optional[bool] = False
     nev_syndicate_lp: Optional[bool] = False
-    added_by_user_id: Optional[str] = None  # relationship manager: which GP owns the relationship
+    added_by_user_id: Optional[str] = None
+    profile_pic_url: Optional[str] = None
+    related_companies: Optional[str] = None
+    stage: Optional[str] = None
+    vc_firm_name: Optional[str] = None
+    startup_name: Optional[str] = None
+    investor_check_size: Optional[str] = None
+    introductions_made: Optional[str] = None
+    introduced_us_to: Optional[str] = None
+    interested_lp: Optional[bool] = False
+    investor_in: Optional[str] = None
+    warm: Optional[bool] = False
+    syndicate_member: Optional[bool] = False
+    quarterly_update_list: Optional[bool] = False
+    notes_2: Optional[str] = None
+    intros_made_for_us: Optional[int] = 0
+    intros_we_made: Optional[int] = 0
+    check_sizes: Optional[str] = None
 
 
 class NetworkContactUpdate(BaseModel):
@@ -33,6 +50,23 @@ class NetworkContactUpdate(BaseModel):
     tags: Optional[str] = None
     nev_fund_i_lp: Optional[bool] = None
     nev_syndicate_lp: Optional[bool] = None
+    profile_pic_url: Optional[str] = None
+    related_companies: Optional[str] = None
+    stage: Optional[str] = None
+    vc_firm_name: Optional[str] = None
+    startup_name: Optional[str] = None
+    investor_check_size: Optional[str] = None
+    introductions_made: Optional[str] = None
+    introduced_us_to: Optional[str] = None
+    interested_lp: Optional[bool] = None
+    investor_in: Optional[str] = None
+    warm: Optional[bool] = None
+    syndicate_member: Optional[bool] = None
+    quarterly_update_list: Optional[bool] = None
+    notes_2: Optional[str] = None
+    intros_made_for_us: Optional[int] = None
+    intros_we_made: Optional[int] = None
+    check_sizes: Optional[str] = None
 
 
 class NetworkContactOut(BaseModel):
@@ -50,6 +84,23 @@ class NetworkContactOut(BaseModel):
     nev_fund_i_lp: bool = False
     nev_syndicate_lp: bool = False
     added_by_user_id: str
+    profile_pic_url: Optional[str] = None
+    related_companies: Optional[str] = None
+    stage: Optional[str] = None
+    vc_firm_name: Optional[str] = None
+    startup_name: Optional[str] = None
+    investor_check_size: Optional[str] = None
+    introductions_made: Optional[str] = None
+    introduced_us_to: Optional[str] = None
+    interested_lp: bool = False
+    investor_in: Optional[str] = None
+    warm: bool = False
+    syndicate_member: bool = False
+    quarterly_update_list: bool = False
+    notes_2: Optional[str] = None
+    intros_made_for_us: int = 0
+    intros_we_made: int = 0
+    check_sizes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

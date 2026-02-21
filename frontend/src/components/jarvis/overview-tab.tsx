@@ -72,7 +72,7 @@ export function OverviewTab({
           </Button>
         )}
         {!setActiveTab && (
-          <Link href={`/companies/${companyId}`}>
+          <Link href={`/dealroom/${companyId}`}>
             <Button size="sm">
               <Sparkles className="mr-1.5 size-4" />
               Generate memo

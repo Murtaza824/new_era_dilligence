@@ -109,7 +109,7 @@ export default function DealflowDetailPage() {
       const { company_id } = await dealflowApi.entries.promoteToDealRoom(entryId, true);
       toast.success("Promoted to Deal Room");
       setShowPromoteModal(false);
-      router.push(`/companies/${company_id}`);
+      router.push(`/dealroom/${company_id}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Promote failed";
       toast.error(msg);
@@ -225,7 +225,7 @@ export default function DealflowDetailPage() {
           <h1 className="font-display text-2xl font-semibold tracking-tight">{entry.name}</h1>
           {entry.promoted_company_id && (
             <Link
-              href={`/companies/${entry.promoted_company_id}`}
+              href={`/dealroom/${entry.promoted_company_id}`}
               className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-green-500/15 px-2.5 py-1 text-sm text-green-700 dark:text-green-400"
             >
               <Briefcase className="size-4" />

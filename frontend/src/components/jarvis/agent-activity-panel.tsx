@@ -91,7 +91,7 @@ export function AgentActivityPanel({ isOpen, onClose }: Props) {
               const label = job.entity_label || job.entity_id;
               const href =
                 job.type === "memo_generate" && job.entity_type === "company"
-                  ? `/companies/${job.entity_id}?tab=memo`
+                  ? `/dealroom/${job.entity_id}?tab=memo`
                   : null;
               const duration = formatDuration(job.duration_seconds);
 

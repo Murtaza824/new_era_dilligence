@@ -238,6 +238,23 @@ export interface NetworkContact {
   nev_fund_i_lp: boolean;
   nev_syndicate_lp: boolean;
   added_by_user_id: string;
+  profile_pic_url: string | null;
+  related_companies: string | null;
+  stage: string | null;
+  vc_firm_name: string | null;
+  startup_name: string | null;
+  investor_check_size: string | null;
+  introductions_made: string | null;
+  introduced_us_to: string | null;
+  interested_lp: boolean;
+  investor_in: string | null;
+  warm: boolean;
+  syndicate_member: boolean;
+  quarterly_update_list: boolean;
+  notes_2: string | null;
+  intros_made_for_us: number;
+  intros_we_made: number;
+  check_sizes: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -26,7 +26,7 @@ const Login = () => {
     try {
       await login(email.trim(), password);
       toast.success("Signed in");
-      router.push("/companies");
+      router.push("/dealroom");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Invalid email or password");
     } finally {

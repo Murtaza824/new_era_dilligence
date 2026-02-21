@@ -158,7 +158,7 @@ export default function CompaniesPage() {
                 <Trash2 className="size-4" />
               </button>
 
-              <Link href={`/companies/${c.id}`} className="flex gap-3">
+              <Link href={`/dealroom/${c.id}`} className="flex gap-3">
                 <CompanyLogo name={c.name} logoUrl={c.logo_url ?? null} size="md" />
                 <div className="min-w-0">
                 <h3 className="font-display text-lg font-semibold group-hover:underline">
