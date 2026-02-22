@@ -11,7 +11,8 @@ class ContactIntroductionSuggestion(Base):
     __tablename__ = "contact_introduction_suggestions"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    network_contact_id = Column(String, ForeignKey("network_contacts.id"), nullable=False)
+    network_contact_id = Column(String, ForeignKey("network_contacts.id"), nullable=True)
+    tracked_person_id = Column(String, ForeignKey("tracked_persons.id"), nullable=True)
     target_type = Column(String, nullable=False)  # "company" | "portfolio" | "dealflow"
     target_company_id = Column(String, ForeignKey("companies.id"), nullable=True)
     target_portfolio_id = Column(String, ForeignKey("portfolio_snapshots.id"), nullable=True)

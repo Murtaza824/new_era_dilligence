@@ -261,7 +261,8 @@ export interface NetworkContact {
 
 export interface IntroductionSuggestion {
   id: string;
-  network_contact_id: string;
+  network_contact_id: string | null;
+  tracked_person_id: string | null;
   target_type: "company" | "portfolio" | "dealflow";
   target_company_id: string | null;
   target_portfolio_id: string | null;
@@ -273,9 +274,50 @@ export interface IntroductionSuggestion {
   created_at: string;
   updated_at: string;
   contact_name: string | null;
+  tracked_person_name: string | null;
   target_company_name: string | null;
   target_portfolio_name: string | null;
   target_dealflow_entry_name: string | null;
+}
+
+export interface TrackedPerson {
+  id: string;
+  name: string;
+  linkedin_url: string | null;
+  notes: string | null;
+  source: string | null;
+  dealflow_entry_id: string | null;
+  added_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+  dealflow_entry_name: string | null;
+}
+
+// ── Intelligence / News ─────────────────────────────────────────────────────
+
+export interface IntelligenceSource {
+  id: string;
+  source_type: "twitter" | "substack" | "rss";
+  name: string;
+  identifier: string;
+  is_active: boolean;
+  last_fetched_at: string | null;
+  created_at: string;
+}
+
+export interface NewsItem {
+  id: string;
+  intelligence_source_id: string | null;
+  portfolio_snapshot_id: string | null;
+  source_name: string;
+  entity_name: string | null;
+  headline: string;
+  url: string | null;
+  snippet: string | null;
+  is_read: boolean;
+  is_flagged: boolean;
+  fetched_at: string;
+  created_at: string;
 }
 
 // ── Dealflow ────────────────────────────────────────────────────────────────

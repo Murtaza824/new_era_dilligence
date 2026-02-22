@@ -18,6 +18,7 @@ from app.models.contact_introduction_suggestion import ContactIntroductionSugges
 from app.models.dealflow_entry import DealflowEntry
 from app.models.network_contact import NetworkContact
 from app.models.portfolio import PortfolioSnapshot
+from app.models.tracked_person import TrackedPerson
 
 logger = logging.getLogger(__name__)
 
@@ -56,15 +57,19 @@ def _dealflow_entry_in_fundraising(entry: DealflowEntry) -> bool:
 
 def _suggestion_exists(
     db: Session,
-    contact_id: str,
+    contact_id: Optional[str],
     target_company_id: Optional[str],
     target_portfolio_id: Optional[str],
     target_dealflow_entry_id: Optional[str] = None,
+    tracked_person_id: Optional[str] = None,
 ) -> bool:
     q = db.query(ContactIntroductionSuggestion).filter(
-        ContactIntroductionSuggestion.network_contact_id == contact_id,
         ContactIntroductionSuggestion.status == "suggested",
     )
+    if contact_id:
+        q = q.filter(ContactIntroductionSuggestion.network_contact_id == contact_id)
+    if tracked_person_id:
+        q = q.filter(ContactIntroductionSuggestion.tracked_person_id == tracked_person_id)
     if target_company_id:
         q = q.filter(ContactIntroductionSuggestion.target_company_id == target_company_id)
     if target_portfolio_id:
@@ -103,7 +108,7 @@ def _enrich_reason(
 
 def _add_suggestion(
     db: Session,
-    contact_id: str,
+    contact_id: Optional[str],
     target_type: str,
     introduction_type: str,
     reason_summary: str,
@@ -111,13 +116,16 @@ def _add_suggestion(
     target_company_id: Optional[str] = None,
     target_portfolio_id: Optional[str] = None,
     target_dealflow_entry_id: Optional[str] = None,
+    tracked_person_id: Optional[str] = None,
 ) -> None:
     if _suggestion_exists(
-        db, contact_id, target_company_id, target_portfolio_id, target_dealflow_entry_id
+        db, contact_id, target_company_id, target_portfolio_id,
+        target_dealflow_entry_id, tracked_person_id=tracked_person_id,
     ):
         return
     row = ContactIntroductionSuggestion(
         network_contact_id=contact_id,
+        tracked_person_id=tracked_person_id,
         target_type=target_type,
         target_company_id=target_company_id,
         target_portfolio_id=target_portfolio_id,
@@ -221,7 +229,7 @@ def run_matchmaking_for_new_contact(contact_id: str, db: Session, trigger: str =
 
 
 def run_matchmaking_for_new_company(company_id: str, db: Session, trigger: str = "company_created") -> int:
-    """After a company is created/promoted, suggest intros from network contacts to this company."""
+    """After a company is created/promoted, suggest intros from network contacts and tracked persons."""
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         return 0
@@ -257,6 +265,9 @@ def run_matchmaking_for_new_company(company_id: str, db: Session, trigger: str =
             )
             added += 1
 
+    # Also check tracked persons
+    added += _match_tracked_persons_to_company(db, company, trigger)
+
     if added:
         db.commit()
     return added
@@ -265,7 +276,7 @@ def run_matchmaking_for_new_company(company_id: str, db: Session, trigger: str =
 def run_matchmaking_for_dealflow_entry(
     entry_id: str, db: Session, trigger: str = "dealflow_entry_created"
 ) -> int:
-    """After a dealflow entry is created/updated, suggest intros from network to this company."""
+    """After a dealflow entry is created/updated, suggest intros from network and tracked persons."""
     entry = db.query(DealflowEntry).filter(DealflowEntry.id == entry_id).first()
     if not entry:
         return 0
@@ -307,6 +318,9 @@ def run_matchmaking_for_dealflow_entry(
             )
             added += 1
 
+    # Also check tracked persons
+    added += _match_tracked_persons_to_dealflow(db, entry, trigger)
+
     if added:
         db.commit()
     return added
@@ -341,6 +355,158 @@ def run_matchmaking_for_portfolio_added(portfolio_id: str, db: Session, trigger:
                 f"Contact could be customer or channel for portfolio company {snap.company_name}.",
                 trigger,
                 target_portfolio_id=snap.id,
+            )
+            added += 1
+
+    # Also check tracked persons
+    added += _match_tracked_persons_to_portfolio(db, snap, trigger)
+
+    if added:
+        db.commit()
+    return added
+
+
+# ---------------------------------------------------------------------------
+# Tracked-person matchmaking helpers
+# ---------------------------------------------------------------------------
+
+def _tracked_person_matches_fundraising(person: TrackedPerson) -> bool:
+    """Heuristic: a tracked person might match fundraising if their notes or source hint at investing."""
+    notes = (person.notes or "").lower()
+    source = (person.source or "").lower()
+    investor_terms = {"investor", "lp", "angel", "vc", "fund", "capital"}
+    combined = f"{notes} {source}"
+    return any(t in combined for t in investor_terms)
+
+
+def _tracked_person_matches_customer_sales(person: TrackedPerson) -> bool:
+    notes = (person.notes or "").lower()
+    source = (person.source or "").lower()
+    sales_terms = {"operator", "buyer", "enterprise", "sales", "bd", "customer"}
+    combined = f"{notes} {source}"
+    return any(t in combined for t in sales_terms)
+
+
+def _match_tracked_persons_to_company(db: Session, company: Company, trigger: str) -> int:
+    persons = db.query(TrackedPerson).all()
+    added = 0
+    for p in persons:
+        if _tracked_person_matches_fundraising(p) and _company_in_fundraising(company):
+            _add_suggestion(
+                db, None, "company", "fundraising",
+                f"Tracked person {p.name} may be investor; company raising.",
+                trigger, target_company_id=company.id, tracked_person_id=p.id,
+            )
+            added += 1
+        if _tracked_person_matches_customer_sales(p):
+            _add_suggestion(
+                db, None, "company", "customer_sales",
+                f"Tracked person {p.name} could be customer/channel for {company.name}.",
+                trigger, target_company_id=company.id, tracked_person_id=p.id,
+            )
+            added += 1
+    return added
+
+
+def _match_tracked_persons_to_dealflow(db: Session, entry: DealflowEntry, trigger: str) -> int:
+    persons = db.query(TrackedPerson).all()
+    added = 0
+    for p in persons:
+        if _tracked_person_matches_fundraising(p) and _dealflow_entry_in_fundraising(entry):
+            _add_suggestion(
+                db, None, "dealflow", "fundraising",
+                f"Tracked person {p.name} may be investor; dealflow {entry.name} is raising.",
+                trigger, target_dealflow_entry_id=entry.id, tracked_person_id=p.id,
+            )
+            added += 1
+        if _tracked_person_matches_customer_sales(p):
+            _add_suggestion(
+                db, None, "dealflow", "customer_sales",
+                f"Tracked person {p.name} could be customer/channel for {entry.name}.",
+                trigger, target_dealflow_entry_id=entry.id, tracked_person_id=p.id,
+            )
+            added += 1
+    return added
+
+
+def _match_tracked_persons_to_portfolio(db: Session, snap: PortfolioSnapshot, trigger: str) -> int:
+    persons = db.query(TrackedPerson).all()
+    added = 0
+    for p in persons:
+        if _tracked_person_matches_fundraising(p) and (snap.entry_valuation or snap.investment_stage):
+            _add_suggestion(
+                db, None, "portfolio", "fundraising",
+                f"Tracked person {p.name} may be investor; portfolio {snap.company_name}.",
+                trigger, target_portfolio_id=snap.id, tracked_person_id=p.id,
+            )
+            added += 1
+        if _tracked_person_matches_customer_sales(p):
+            _add_suggestion(
+                db, None, "portfolio", "customer_sales",
+                f"Tracked person {p.name} could be customer/channel for {snap.company_name}.",
+                trigger, target_portfolio_id=snap.id, tracked_person_id=p.id,
+            )
+            added += 1
+    return added
+
+
+def run_matchmaking_for_tracked_person(
+    person_id: str, db: Session, trigger: str = "tracked_person_added"
+) -> int:
+    """After a tracked person is added/updated, suggest intros to companies, portfolio, dealflow."""
+    person = db.query(TrackedPerson).filter(TrackedPerson.id == person_id).first()
+    if not person:
+        return 0
+    added = 0
+
+    companies = db.query(Company).all()
+    for c in companies:
+        if _tracked_person_matches_fundraising(person) and _company_in_fundraising(c):
+            _add_suggestion(
+                db, None, "company", "fundraising",
+                f"Tracked person {person.name} may be investor; company raising ({c.investment_stage or 'TBD'}).",
+                trigger, target_company_id=c.id, tracked_person_id=person.id,
+            )
+            added += 1
+        if _tracked_person_matches_customer_sales(person):
+            _add_suggestion(
+                db, None, "company", "customer_sales",
+                f"Tracked person {person.name} could be customer/channel for {c.name}.",
+                trigger, target_company_id=c.id, tracked_person_id=person.id,
+            )
+            added += 1
+
+    portfolio = db.query(PortfolioSnapshot).all()
+    for snap in portfolio:
+        if _tracked_person_matches_fundraising(person) and (snap.entry_valuation or snap.investment_stage):
+            _add_suggestion(
+                db, None, "portfolio", "fundraising",
+                f"Tracked person {person.name} may be investor; portfolio {snap.company_name}.",
+                trigger, target_portfolio_id=snap.id, tracked_person_id=person.id,
+            )
+            added += 1
+        if _tracked_person_matches_customer_sales(person):
+            _add_suggestion(
+                db, None, "portfolio", "customer_sales",
+                f"Tracked person {person.name} could be customer/channel for {snap.company_name}.",
+                trigger, target_portfolio_id=snap.id, tracked_person_id=person.id,
+            )
+            added += 1
+
+    entries = db.query(DealflowEntry).all()
+    for entry in entries:
+        if _tracked_person_matches_fundraising(person) and _dealflow_entry_in_fundraising(entry):
+            _add_suggestion(
+                db, None, "dealflow", "fundraising",
+                f"Tracked person {person.name} may be investor; dealflow {entry.name} raising.",
+                trigger, target_dealflow_entry_id=entry.id, tracked_person_id=person.id,
+            )
+            added += 1
+        if _tracked_person_matches_customer_sales(person):
+            _add_suggestion(
+                db, None, "dealflow", "customer_sales",
+                f"Tracked person {person.name} could be customer/channel for {entry.name}.",
+                trigger, target_dealflow_entry_id=entry.id, tracked_person_id=person.id,
             )
             added += 1
 

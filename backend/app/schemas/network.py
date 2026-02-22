@@ -113,7 +113,8 @@ class IntroductionSuggestionUpdate(BaseModel):
 
 class IntroductionSuggestionOut(BaseModel):
     id: str
-    network_contact_id: str
+    network_contact_id: Optional[str] = None
+    tracked_person_id: Optional[str] = None
     target_type: str
     target_company_id: Optional[str] = None
     target_portfolio_id: Optional[str] = None
@@ -126,6 +127,7 @@ class IntroductionSuggestionOut(BaseModel):
     updated_at: datetime
     # Enriched for display
     contact_name: Optional[str] = None
+    tracked_person_name: Optional[str] = None
     target_company_name: Optional[str] = None
     target_portfolio_name: Optional[str] = None
     target_dealflow_entry_name: Optional[str] = None

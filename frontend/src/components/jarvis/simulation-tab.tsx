@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OutcomeAnalysisTab } from "@/components/jarvis/outcome-analysis-tab";
 import { simulations as simApi } from "@/lib/api";
 import type { SimulationRun, SimulationSuggestion } from "@/types";
 
@@ -44,7 +45,11 @@ function fmtPct(n: number): string {
   return `${n.toFixed(1)}%`;
 }
 
+type SubTab = "monte_carlo" | "outcome_analysis";
+
 export function SimulationTab({ companyId }: Props) {
+  const [subTab, setSubTab] = useState<SubTab>("monte_carlo");
+
   // Form state — core inputs
   const [entryVal, setEntryVal] = useState(20_000_000);
   const [checkSize, setCheckSize] = useState(175_000);
@@ -139,6 +144,40 @@ export function SimulationTab({ companyId }: Props) {
 
   return (
     <div>
+      {/* Sub-tab toggle */}
+      <div className="mb-6 flex gap-1 rounded-lg border bg-muted p-1 w-fit">
+        <button
+          type="button"
+          onClick={() => setSubTab("monte_carlo")}
+          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            subTab === "monte_carlo"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Monte Carlo
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubTab("outcome_analysis")}
+          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            subTab === "outcome_analysis"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Outcome Analysis
+        </button>
+      </div>
+
+      {subTab === "outcome_analysis" ? (
+        <OutcomeAnalysisTab
+          entryValuation={entryVal}
+          checkSize={checkSize}
+          fundSize={fundSize}
+        />
+      ) : (
+      <div>
       {/* Input form */}
       <div className="mb-6 rounded-xl border bg-card p-5">
         <div className="mb-4 flex items-center justify-between">
@@ -461,6 +500,8 @@ export function SimulationTab({ companyId }: Props) {
             Suggest" to auto-fill.
           </p>
         </div>
+      )}
+      </div>
       )}
     </div>
   );

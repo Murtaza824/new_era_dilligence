@@ -5,15 +5,15 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { ArrowRight, ExternalLink, Globe, LayoutList, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowRight, ExternalLink, Globe, LayoutList, Linkedin, Loader2, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
-import { dealflowApi, type DealflowEntryCreateBody, type DealflowEntryUpdateBody } from "@/lib/api";
-import type { DealflowEntry } from "@/types";
+import { dealflowApi, trackedPersonsApi, type DealflowEntryCreateBody, type DealflowEntryUpdateBody, type TrackedPersonCreateBody } from "@/lib/api";
+import type { DealflowEntry, TrackedPerson } from "@/types";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -51,8 +51,13 @@ function formatCurrency(n: number | null | undefined): string {
   return `$${n}`;
 }
 
+type SubTab = "companies" | "people";
+
 export default function DealflowPage() {
   const { user, loading: authLoading } = useAuth();
+  const [subTab, setSubTab] = useState<SubTab>("companies");
+
+  // Companies state
   const [list, setList] = useState<DealflowEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -66,6 +71,20 @@ export default function DealflowPage() {
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [promoteTarget, setPromoteTarget] = useState<DealflowEntry | null>(null);
   const router = useRouter();
+
+  // People tracker state
+  const [people, setPeople] = useState<TrackedPerson[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(true);
+  const [peopleSearch, setPeopleSearch] = useState("");
+  const [peopleSourceFilter, setPeopleSourceFilter] = useState("");
+  const [showPersonForm, setShowPersonForm] = useState(false);
+  const [creatingPerson, setCreatingPerson] = useState(false);
+  const [editingPerson, setEditingPerson] = useState<{ id: string; field: string } | null>(null);
+  const [savingPerson, setSavingPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState("");
+  const [newPersonLinkedIn, setNewPersonLinkedIn] = useState("");
+  const [newPersonNotes, setNewPersonNotes] = useState("");
+  const [newPersonSource, setNewPersonSource] = useState("");
 
   const [newName, setNewName] = useState("");
   const [newWebsite, setNewWebsite] = useState("");
@@ -98,6 +117,90 @@ export default function DealflowPage() {
     if (!authLoading && user) load();
     else if (!authLoading && !user) setLoading(false);
   }, [authLoading, user, load]);
+
+  const loadPeople = useCallback(() => {
+    setPeopleLoading(true);
+    trackedPersonsApi
+      .list({
+        ...(peopleSearch.trim() && { q: peopleSearch.trim() }),
+        ...(peopleSourceFilter && { source: peopleSourceFilter }),
+      })
+      .then(setPeople)
+      .catch(() => toast.error("Failed to load people"))
+      .finally(() => setPeopleLoading(false));
+  }, [peopleSearch, peopleSourceFilter]);
+
+  useEffect(() => {
+    if (!authLoading && user && subTab === "people") loadPeople();
+  }, [authLoading, user, subTab, loadPeople]);
+
+  const handleCreatePerson = async () => {
+    if (!newPersonName.trim()) return;
+    setCreatingPerson(true);
+    try {
+      const body: TrackedPersonCreateBody = {
+        name: newPersonName.trim(),
+        ...(newPersonLinkedIn.trim() && { linkedin_url: newPersonLinkedIn.trim() }),
+        ...(newPersonNotes.trim() && { notes: newPersonNotes.trim() }),
+        ...(newPersonSource && { source: newPersonSource }),
+      };
+      await trackedPersonsApi.create(body);
+      setNewPersonName("");
+      setNewPersonLinkedIn("");
+      setNewPersonNotes("");
+      setNewPersonSource("");
+      setShowPersonForm(false);
+      loadPeople();
+      toast.success("Person added");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to add person";
+      toast.error(message);
+    } finally {
+      setCreatingPerson(false);
+    }
+  };
+
+  const handleDeletePerson = async (p: TrackedPerson) => {
+    if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
+    try {
+      await trackedPersonsApi.delete(p.id);
+      toast.success(`"${p.name}" removed`);
+      loadPeople();
+    } catch {
+      toast.error("Failed to delete");
+    }
+  };
+
+  const handlePromoteToContact = async (p: TrackedPerson) => {
+    try {
+      const res = await trackedPersonsApi.promoteToContact(p.id);
+      toast.success(res.message);
+      router.push(`/network`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to promote";
+      toast.error(message);
+    }
+  };
+
+  const handlePersonInlineSave = async (
+    personId: string,
+    field: string,
+    value: string | null | undefined
+  ) => {
+    setEditingPerson(null);
+    setSavingPerson(true);
+    try {
+      const updated = await trackedPersonsApi.update(personId, { [field]: value ?? null });
+      setPeople((prev) => prev.map((p) => (p.id === personId ? updated : p)));
+    } catch {
+      toast.error("Failed to save");
+    } finally {
+      setSavingPerson(false);
+    }
+  };
+
+  const isEditingPerson = (id: string, field: string) =>
+    editingPerson?.id === id && editingPerson?.field === field;
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -202,20 +305,53 @@ export default function DealflowPage() {
 
   return (
     <div className="container mx-auto max-w-6xl px-6 pt-10 pb-20">
-      <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">Dealflow</h1>
           <p className="text-muted-foreground mt-1">
-            Top-of-funnel companies; promote winners to Deal Room.
+            Top-of-funnel companies and people you&apos;re tracking.
           </p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} size="sm">
-          <Plus className="mr-1.5 size-4" />
-          Add company
-        </Button>
+        {subTab === "companies" ? (
+          <Button onClick={() => setShowForm(!showForm)} size="sm">
+            <Plus className="mr-1.5 size-4" />
+            Add company
+          </Button>
+        ) : (
+          <Button onClick={() => setShowPersonForm(!showPersonForm)} size="sm">
+            <Plus className="mr-1.5 size-4" />
+            Add person
+          </Button>
+        )}
       </div>
 
-      {showForm && (
+      {/* Sub-tab toggle */}
+      <div className="mb-6 flex gap-1 rounded-lg border bg-muted p-1 w-fit">
+        <button
+          type="button"
+          onClick={() => setSubTab("companies")}
+          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            subTab === "companies"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Companies
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubTab("people")}
+          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            subTab === "people"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          People
+        </button>
+      </div>
+
+      {subTab === "companies" && showForm && (
         <div className="mb-8 rounded-xl border bg-card p-4 shadow-sm space-y-4">
           <h3 className="font-medium">New dealflow entry</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -311,9 +447,10 @@ export default function DealflowPage() {
         </div>
       )}
 
-      {saving && (
+      {subTab === "companies" && saving && (
         <p className="text-muted-foreground text-sm mb-2">Saving…</p>
       )}
+      {subTab === "companies" && (<>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
@@ -669,6 +806,271 @@ export default function DealflowPage() {
         loading={promotingId === promoteTarget?.id}
         onConfirm={confirmPromote}
       />
+      </>)}
+
+      {/* ── People Tracker ──────────────────────────────────────── */}
+      {subTab === "people" && (<>
+      {showPersonForm && (
+        <div className="mb-8 rounded-xl border bg-card p-4 shadow-sm space-y-4">
+          <h3 className="font-medium">Add a person</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <Input
+              placeholder="Name *"
+              value={newPersonName}
+              onChange={(e) => setNewPersonName(e.target.value)}
+              className="sm:col-span-2"
+            />
+            <Input
+              placeholder="LinkedIn URL"
+              value={newPersonLinkedIn}
+              onChange={(e) => setNewPersonLinkedIn(e.target.value)}
+            />
+            <select
+              value={newPersonSource}
+              onChange={(e) => setNewPersonSource(e.target.value)}
+              className="rounded-md border bg-background px-3 py-2 text-sm"
+            >
+              <option value="">Source…</option>
+              {SOURCE_OPTIONS.filter((o) => o.value).map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <div className="sm:col-span-2">
+              <Input
+                placeholder="Notes"
+                value={newPersonNotes}
+                onChange={(e) => setNewPersonNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleCreatePerson} disabled={creatingPerson || !newPersonName.trim()} size="sm">
+              {creatingPerson ? "Adding…" : "Add"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowPersonForm(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {savingPerson && (
+        <p className="text-muted-foreground text-sm mb-2">Saving…</p>
+      )}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
+          <Input
+            placeholder="Search people…"
+            value={peopleSearch}
+            onChange={(e) => setPeopleSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <select
+          value={peopleSourceFilter}
+          onChange={(e) => setPeopleSourceFilter(e.target.value)}
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+        >
+          {SOURCE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {peopleLoading && (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-14 animate-pulse rounded-lg border bg-card" />
+          ))}
+        </div>
+      )}
+
+      {!peopleLoading && people.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed py-20">
+          <LayoutList className="text-muted-foreground mb-4 size-12" />
+          <p className="text-muted-foreground text-lg">No tracked people yet.</p>
+          <p className="text-muted-foreground text-sm">Click &quot;Add person&quot; to start tracking someone.</p>
+        </div>
+      )}
+
+      {!peopleLoading && people.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border bg-card">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left p-3 font-medium">Person</th>
+                <th className="text-left p-3 font-medium">LinkedIn</th>
+                <th className="text-left p-3 font-medium">Notes</th>
+                <th className="text-left p-3 font-medium">Source</th>
+                <th className="text-left p-3 font-medium">Linked Company</th>
+                <th className="text-left p-3 font-medium">Added</th>
+                <th className="w-10 p-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {people.map((p) => (
+                <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="p-2">
+                    {isEditingPerson(p.id, "name") ? (
+                      <Input
+                        className="h-8 w-full min-w-[120px]"
+                        defaultValue={p.name}
+                        onBlur={(ev) => handlePersonInlineSave(p.id, "name", ev.target.value.trim() || p.name)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter") ev.currentTarget.blur();
+                          if (ev.key === "Escape") setEditingPerson(null);
+                        }}
+                      />
+                    ) : (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="font-medium text-foreground cursor-text hover:bg-muted/50 rounded px-1 -mx-1"
+                        onClick={() => setEditingPerson({ id: p.id, field: "name" })}
+                        onKeyDown={(ev) => ev.key === "Enter" && setEditingPerson({ id: p.id, field: "name" })}
+                      >
+                        {p.name}
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-2">
+                    {isEditingPerson(p.id, "linkedin_url") ? (
+                      <Input
+                        className="h-8 w-full min-w-[160px] text-sm"
+                        defaultValue={p.linkedin_url ?? ""}
+                        placeholder="LinkedIn URL"
+                        onBlur={(ev) => handlePersonInlineSave(p.id, "linkedin_url", ev.target.value.trim() || undefined)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter") ev.currentTarget.blur();
+                          if (ev.key === "Escape") setEditingPerson(null);
+                        }}
+                      />
+                    ) : p.linkedin_url ? (
+                      <div className="flex items-center gap-1.5">
+                        <a
+                          href={p.linkedin_url.startsWith("http") ? p.linkedin_url : `https://${p.linkedin_url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          title="Open LinkedIn"
+                        >
+                          <Linkedin className="size-4" />
+                        </a>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="text-muted-foreground text-xs truncate max-w-[120px] cursor-text hover:bg-muted/50 rounded px-1"
+                          onClick={() => setEditingPerson({ id: p.id, field: "linkedin_url" })}
+                          onKeyDown={(ev) => ev.key === "Enter" && setEditingPerson({ id: p.id, field: "linkedin_url" })}
+                        >
+                          {p.linkedin_url.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, "").replace(/\/$/, "")}
+                        </span>
+                      </div>
+                    ) : (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="text-muted-foreground cursor-text hover:bg-muted/50 rounded px-1 -mx-1"
+                        onClick={() => setEditingPerson({ id: p.id, field: "linkedin_url" })}
+                        onKeyDown={(ev) => ev.key === "Enter" && setEditingPerson({ id: p.id, field: "linkedin_url" })}
+                      >
+                        —
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-2 max-w-[200px]">
+                    {isEditingPerson(p.id, "notes") ? (
+                      <Input
+                        className="h-8 w-full text-sm"
+                        defaultValue={p.notes ?? ""}
+                        placeholder="Notes"
+                        onBlur={(ev) => handlePersonInlineSave(p.id, "notes", ev.target.value.trim() || undefined)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter") ev.currentTarget.blur();
+                          if (ev.key === "Escape") setEditingPerson(null);
+                        }}
+                      />
+                    ) : (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="text-muted-foreground text-sm block truncate cursor-text hover:bg-muted/50 rounded px-1 -mx-1"
+                        onClick={() => setEditingPerson({ id: p.id, field: "notes" })}
+                        onKeyDown={(ev) => ev.key === "Enter" && setEditingPerson({ id: p.id, field: "notes" })}
+                        title={p.notes ?? undefined}
+                      >
+                        {p.notes || "—"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-2">
+                    {isEditingPerson(p.id, "source") ? (
+                      <select
+                        className="h-8 w-full min-w-[90px] rounded-md border bg-background px-2 text-sm"
+                        defaultValue={p.source ?? ""}
+                        onBlur={(ev) => handlePersonInlineSave(p.id, "source", ev.target.value || undefined)}
+                        onKeyDown={(ev) => ev.key === "Escape" && setEditingPerson(null)}
+                      >
+                        <option value="">—</option>
+                        {SOURCE_OPTIONS.filter((o) => o.value).map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="block cursor-text hover:bg-muted/50 rounded px-1 -mx-1"
+                        onClick={() => setEditingPerson({ id: p.id, field: "source" })}
+                        onKeyDown={(ev) => ev.key === "Enter" && setEditingPerson({ id: p.id, field: "source" })}
+                      >
+                        {p.source || "—"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-2">
+                    {p.dealflow_entry_name ? (
+                      <Link
+                        href={`/dealflow/${p.dealflow_entry_id}`}
+                        className="text-primary text-sm hover:underline"
+                      >
+                        {p.dealflow_entry_name}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="text-muted-foreground p-3 text-sm">
+                    {new Date(p.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="p-2">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handlePromoteToContact(p)}
+                        className="rounded p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                        title="Promote to Network Contact"
+                      >
+                        <UserPlus className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePerson(p)}
+                        className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        title="Delete"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      </>)}
     </div>
   );
 }

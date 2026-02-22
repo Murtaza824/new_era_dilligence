@@ -148,6 +148,7 @@ export default function NetworkPage() {
     for (const s of suggestions) {
       if (s.status !== "suggested") continue;
       const id = s.network_contact_id;
+      if (!id) continue;
       map[id] = (map[id] ?? 0) + 1;
     }
     return map;

@@ -361,9 +361,12 @@ def delete_contact(contact_id: str, db: Session = Depends(get_db)):
 
 
 def _enrich_suggestion(s: ContactIntroductionSuggestion, db: Session) -> dict:
+    from app.models.tracked_person import TrackedPerson
+
     out = {
         "id": s.id,
         "network_contact_id": s.network_contact_id,
+        "tracked_person_id": getattr(s, "tracked_person_id", None),
         "target_type": s.target_type,
         "target_company_id": s.target_company_id,
         "target_portfolio_id": s.target_portfolio_id,
@@ -375,13 +378,19 @@ def _enrich_suggestion(s: ContactIntroductionSuggestion, db: Session) -> dict:
         "created_at": s.created_at,
         "updated_at": s.updated_at,
         "contact_name": None,
+        "tracked_person_name": None,
         "target_company_name": None,
         "target_portfolio_name": None,
         "target_dealflow_entry_name": None,
     }
-    contact = db.query(NetworkContact).filter(NetworkContact.id == s.network_contact_id).first()
-    if contact:
-        out["contact_name"] = contact.name
+    if s.network_contact_id:
+        contact = db.query(NetworkContact).filter(NetworkContact.id == s.network_contact_id).first()
+        if contact:
+            out["contact_name"] = contact.name
+    if getattr(s, "tracked_person_id", None):
+        tp = db.query(TrackedPerson).filter(TrackedPerson.id == s.tracked_person_id).first()
+        if tp:
+            out["tracked_person_name"] = tp.name
     if s.target_company_id:
         c = db.query(Company).filter(Company.id == s.target_company_id).first()
         if c:
@@ -405,12 +414,15 @@ def list_suggestions(
     company_id: Optional[str] = Query(None, description="Filter by target company"),
     portfolio_id: Optional[str] = Query(None, description="Filter by target portfolio"),
     dealflow_entry_id: Optional[str] = Query(None, description="Filter by target dealflow entry"),
+    tracked_person_id: Optional[str] = Query(None, description="Filter by tracked person"),
 ):
     query = db.query(ContactIntroductionSuggestion)
     if status_filter:
         query = query.filter(ContactIntroductionSuggestion.status == status_filter)
     if contact_id:
         query = query.filter(ContactIntroductionSuggestion.network_contact_id == contact_id)
+    if tracked_person_id:
+        query = query.filter(ContactIntroductionSuggestion.tracked_person_id == tracked_person_id)
     if company_id:
         query = query.filter(ContactIntroductionSuggestion.target_company_id == company_id)
     if portfolio_id:

@@ -285,6 +285,29 @@ def _migrate_intro_suggestion_dealflow():
             conn.commit()
 
 
+def _migrate_intro_suggestion_tracked_person():
+    """Add tracked_person_id to contact_introduction_suggestions and make network_contact_id nullable."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(contact_introduction_suggestions)"))
+            except Exception:
+                return
+            cols = {row[1] for row in r.fetchall()}
+            if "tracked_person_id" not in cols:
+                conn.execute(
+                    text("ALTER TABLE contact_introduction_suggestions ADD COLUMN tracked_person_id VARCHAR")
+                )
+                conn.commit()
+        else:
+            conn.execute(
+                text(
+                    "ALTER TABLE contact_introduction_suggestions ADD COLUMN IF NOT EXISTS tracked_person_id VARCHAR REFERENCES tracked_persons(id)"
+                )
+            )
+            conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
@@ -299,3 +322,4 @@ def init_db():
     _migrate_company_dealflow_origin_fields()
     _migrate_agent_job_extra_columns()
     _migrate_intro_suggestion_dealflow()
+    _migrate_intro_suggestion_tracked_person()

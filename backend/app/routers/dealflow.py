@@ -4,13 +4,13 @@ import tempfile
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.models.company import Company
 from app.services.matchmaking import run_matchmaking_for_dealflow_entry
 from app.models.dealflow_document import DealflowDocument
@@ -89,9 +89,19 @@ def _set_founders(entry_id: str, founders: list[DealflowFounderCreate], db: Sess
     db.commit()
 
 
+def _run_matchmaking_background(entry_id: str, trigger: str) -> None:
+    """Run dealflow matchmaking in a background task with its own DB session."""
+    db = SessionLocal()
+    try:
+        run_matchmaking_for_dealflow_entry(entry_id, db, trigger=trigger)
+    finally:
+        db.close()
+
+
 @router.post("/entries", response_model=DealflowEntryOut)
 def create_entry(
     body: DealflowEntryCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -115,7 +125,7 @@ def create_entry(
     db.refresh(entry)
     if body.founders:
         _set_founders(entry.id, body.founders, db)
-    run_matchmaking_for_dealflow_entry(entry.id, db, trigger="dealflow_entry_created")
+    background_tasks.add_task(_run_matchmaking_background, entry.id, "dealflow_entry_created")
     return _entry_to_out(entry, db)
 
 
@@ -166,6 +176,7 @@ def get_entry(entry_id: str, db: Session = Depends(get_db)):
 def update_entry(
     entry_id: str,
     body: DealflowEntryUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     entry = db.query(DealflowEntry).filter(DealflowEntry.id == entry_id).first()
@@ -179,7 +190,7 @@ def update_entry(
     db.refresh(entry)
     if founders is not None:
         _set_founders(entry_id, [DealflowFounderCreate(**f) for f in founders], db)
-    run_matchmaking_for_dealflow_entry(entry.id, db, trigger="dealflow_entry_updated")
+    background_tasks.add_task(_run_matchmaking_background, entry.id, "dealflow_entry_updated")
     return _entry_to_out(entry, db)
 
 

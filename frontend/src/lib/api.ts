@@ -1,7 +1,7 @@
 /**
  * Typed API client for the Jarvis backend.
  */
-import type { AgentJob, Company, DealflowDocument, DealflowEntry, DealflowFounder, Document, IntroductionSuggestion, Memo, NetworkContact, SimulationRun, SimulationSuggestion, PortfolioSnapshot, PortfolioUpdateEntry, PortfolioSimulationLatest, PortfolioSimulationOutputs, User, TokenResponse, DealSuggestions } from "@/types";
+import type { AgentJob, Company, DealflowDocument, DealflowEntry, DealflowFounder, Document, IntelligenceSource, IntroductionSuggestion, Memo, NetworkContact, NewsItem, SimulationRun, SimulationSuggestion, PortfolioSnapshot, PortfolioUpdateEntry, PortfolioSimulationLatest, PortfolioSimulationOutputs, TrackedPerson, User, TokenResponse, DealSuggestions } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "jarvis_token";
@@ -402,13 +402,14 @@ export const networkApi = {
     },
   },
   suggestions: {
-    list: (params?: { status?: string; contact_id?: string; company_id?: string; portfolio_id?: string; dealflow_entry_id?: string }) => {
+    list: (params?: { status?: string; contact_id?: string; company_id?: string; portfolio_id?: string; dealflow_entry_id?: string; tracked_person_id?: string }) => {
       const sp = new URLSearchParams();
       if (params?.status) sp.set("status", params.status);
       if (params?.contact_id) sp.set("contact_id", params.contact_id);
       if (params?.company_id) sp.set("company_id", params.company_id);
       if (params?.portfolio_id) sp.set("portfolio_id", params.portfolio_id);
       if (params?.dealflow_entry_id) sp.set("dealflow_entry_id", params.dealflow_entry_id);
+      if (params?.tracked_person_id) sp.set("tracked_person_id", params.tracked_person_id);
       const query = sp.toString();
       return request<IntroductionSuggestion[]>(`/network/suggestions${query ? `?${query}` : ""}`);
     },
@@ -419,6 +420,55 @@ export const networkApi = {
         body: JSON.stringify({ status }),
       }),
   },
+};
+
+// ── News / Intelligence ──────────────────────────────────────────────────
+
+export type IntelligenceSourceCreateBody = {
+  source_type: "twitter" | "substack" | "rss";
+  name: string;
+  identifier: string;
+};
+
+export const newsApi = {
+  sources: {
+    list: () => request<IntelligenceSource[]>("/news/sources"),
+    create: (body: IntelligenceSourceCreateBody) =>
+      request<IntelligenceSource>("/news/sources", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<void>(`/news/sources/${id}`, { method: "DELETE" }),
+  },
+  list: (params?: {
+    portfolio_snapshot_id?: string;
+    source_id?: string;
+    is_read?: boolean;
+    is_flagged?: boolean;
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const sp = new URLSearchParams();
+    if (params?.portfolio_snapshot_id) sp.set("portfolio_snapshot_id", params.portfolio_snapshot_id);
+    if (params?.source_id) sp.set("source_id", params.source_id);
+    if (params?.is_read !== undefined) sp.set("is_read", String(params.is_read));
+    if (params?.is_flagged !== undefined) sp.set("is_flagged", String(params.is_flagged));
+    if (params?.q) sp.set("q", params.q);
+    if (params?.limit) sp.set("limit", String(params.limit));
+    if (params?.offset) sp.set("offset", String(params.offset));
+    const query = sp.toString();
+    return request<NewsItem[]>(`/news${query ? `?${query}` : ""}`);
+  },
+  refresh: () => request<{ status: string }>("/news/refresh", { method: "POST" }),
+  update: (id: string, body: { is_read?: boolean; is_flagged?: boolean }) =>
+    request<NewsItem>(`/news/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  delete: (id: string) =>
+    request<void>(`/news/${id}`, { method: "DELETE" }),
 };
 
 // ── Dealflow ──────────────────────────────────────────────────────────────
@@ -535,6 +585,46 @@ export const dealflowApi = {
       URL.revokeObjectURL(url);
     },
   },
+};
+
+// ── Tracked Persons ──────────────────────────────────────────────────────
+
+export type TrackedPersonCreateBody = {
+  name: string;
+  linkedin_url?: string;
+  notes?: string;
+  source?: string;
+  dealflow_entry_id?: string;
+};
+
+export type TrackedPersonUpdateBody = Partial<TrackedPersonCreateBody>;
+
+export const trackedPersonsApi = {
+  list: (params?: { q?: string; source?: string; dealflow_entry_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.q) sp.set("q", params.q);
+    if (params?.source) sp.set("source", params.source);
+    if (params?.dealflow_entry_id) sp.set("dealflow_entry_id", params.dealflow_entry_id);
+    const query = sp.toString();
+    return request<TrackedPerson[]>(`/tracked-persons${query ? `?${query}` : ""}`);
+  },
+  get: (id: string) => request<TrackedPerson>(`/tracked-persons/${id}`),
+  create: (body: TrackedPersonCreateBody) =>
+    request<TrackedPerson>("/tracked-persons", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  update: (id: string, body: TrackedPersonUpdateBody) =>
+    request<TrackedPerson>(`/tracked-persons/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  delete: (id: string) =>
+    request<{ ok: boolean }>(`/tracked-persons/${id}`, { method: "DELETE" }),
+  promoteToContact: (id: string) =>
+    request<{ contact_id: string; message: string }>(`/tracked-persons/${id}/promote-to-contact`, {
+      method: "POST",
+    }),
 };
 
 // ── Portfolio ────────────────────────────────────────────────────────────
