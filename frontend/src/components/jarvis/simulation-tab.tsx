@@ -22,10 +22,10 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 
+import { OutcomeAnalysisTab } from "@/components/jarvis/outcome-analysis-tab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { OutcomeAnalysisTab } from "@/components/jarvis/outcome-analysis-tab";
 import { simulations as simApi } from "@/lib/api";
 import type { SimulationRun, SimulationSuggestion } from "@/types";
 

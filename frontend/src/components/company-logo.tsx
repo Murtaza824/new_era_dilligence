@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { cn } from "@/lib/utils";
 
 function initials(name: string): string {
@@ -27,10 +29,13 @@ export function CompanyLogo({ name, logoUrl, size = "md", className }: CompanyLo
   const sizeClass = sizeClasses[size];
   if (logoUrl) {
     return (
-      <img
+      <Image
         src={logoUrl}
         alt=""
+        width={size === "sm" ? 32 : size === "md" ? 40 : 48}
+        height={size === "sm" ? 32 : size === "md" ? 40 : 48}
         className={cn("rounded-lg object-cover shrink-0", sizeClass, className)}
+        unoptimized
       />
     );
   }

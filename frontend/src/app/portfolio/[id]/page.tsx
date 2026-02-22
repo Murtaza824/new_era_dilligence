@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
@@ -262,10 +263,13 @@ export default function PortfolioDetailPage() {
                 <ul className="space-y-3">
                   {founders.map((f) => (
                     <li key={f.name} className="flex items-center gap-3">
-                      <img
+                      <Image
                         src={`https://ui-avatars.com/api?name=${encodeURIComponent(f.name)}&size=40&background=random`}
                         alt=""
+                        width={40}
+                        height={40}
                         className="size-10 shrink-0 rounded-full object-cover"
+                        unoptimized
                       />
                       {f.linkedInUrl ? (
                         <a
