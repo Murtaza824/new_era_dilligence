@@ -1,7 +1,7 @@
 /**
  * Typed API client for the Jarvis backend.
  */
-import type { AgentJob, Company, DealflowDocument, DealflowEntry, DealflowFounder, Document, IntelligenceSource, IntroductionSuggestion, Memo, NetworkContact, NewsItem, SimulationRun, SimulationSuggestion, PortfolioSnapshot, PortfolioUpdateEntry, PortfolioSimulationLatest, PortfolioSimulationOutputs, TrackedPerson, User, TokenResponse, DealSuggestions } from "@/types";
+import type { AgentJob, Company, DealflowDocument, DealflowEntry, DealflowFounder, Document, IntelligenceDigest, IntelligenceSource, IntroductionSuggestion, Memo, NetworkContact, NewsItem, SimulationRun, SimulationSuggestion, PortfolioSnapshot, PortfolioUpdateEntry, PortfolioSimulationLatest, PortfolioSimulationOutputs, TrackedPerson, User, TokenResponse, DealSuggestions } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "jarvis_token";
@@ -462,6 +462,7 @@ export const newsApi = {
     return request<NewsItem[]>(`/news${query ? `?${query}` : ""}`);
   },
   refresh: () => request<{ status: string }>("/news/refresh", { method: "POST" }),
+  latestDigest: () => request<IntelligenceDigest>("/news/digest/latest"),
   update: (id: string, body: { is_read?: boolean; is_flagged?: boolean }) =>
     request<NewsItem>(`/news/${id}`, {
       method: "PATCH",

@@ -5,6 +5,7 @@ from app.models.dealflow_document import DealflowDocument
 from app.models.dealflow_entry import DealflowEntry
 from app.models.dealflow_founder import DealflowFounder
 from app.models.document import Document
+from app.models.intelligence_digest import IntelligenceDigest
 from app.models.intelligence_source import IntelligenceSource
 from app.models.memo import Memo, MemoRevision
 from app.models.network_contact import NetworkContact
@@ -24,6 +25,7 @@ __all__ = [
     "DealflowEntry",
     "DealflowFounder",
     "Document",
+    "IntelligenceDigest",
     "IntelligenceSource",
     "Memo",
     "MemoRevision",

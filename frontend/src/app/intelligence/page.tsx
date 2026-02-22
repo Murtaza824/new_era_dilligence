@@ -9,6 +9,7 @@ import {
   ChevronUp,
   ExternalLink,
   Flag,
+  Lightbulb,
   Loader2,
   Newspaper,
   Plus,
@@ -16,6 +17,7 @@ import {
   Rss,
   Search,
   Star,
+  TrendingUp,
   Trash2,
   Twitter,
   X,
@@ -27,7 +29,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { newsApi, type IntelligenceSourceCreateBody } from "@/lib/api";
-import type { IntelligenceSource, NewsItem } from "@/types";
+import type { IntelligenceDigest, IntelligenceSource, NewsItem } from "@/types";
 
 type FilterMode = "all" | "unread" | "flagged";
 
@@ -77,6 +79,31 @@ function identifierPlaceholder(type: string) {
   }
 }
 
+function sentimentColor(s: string | null): string {
+  switch (s) {
+    case "positive":
+      return "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300";
+    case "negative":
+      return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
+    case "mixed":
+      return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300";
+    case "neutral":
+    default:
+      return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
+  }
+}
+
+function importanceBorder(importance: string | null): string {
+  switch (importance) {
+    case "high":
+      return "border-l-4 border-l-orange-500";
+    case "medium":
+      return "border-l-4 border-l-blue-400";
+    default:
+      return "";
+  }
+}
+
 export default function IntelligencePage() {
   const { user } = useAuth();
 
@@ -98,6 +125,12 @@ export default function IntelligencePage() {
   const [searchQ, setSearchQ] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [entityFilter, setEntityFilter] = useState("");
+  const [sentimentFilter, setSentimentFilter] = useState("");
+  const [importanceFilter, setImportanceFilter] = useState("");
+
+  // Digest
+  const [digest, setDigest] = useState<IntelligenceDigest | null>(null);
+  const [digestOpen, setDigestOpen] = useState(true);
 
   const loadSources = useCallback(async () => {
     setSourcesLoading(true);
@@ -128,12 +161,22 @@ export default function IntelligencePage() {
     }
   }, [filterMode, searchQ, sourceFilter]);
 
+  const loadDigest = useCallback(async () => {
+    try {
+      const data = await newsApi.latestDigest();
+      setDigest(data);
+    } catch {
+      // No digest yet — that's fine
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       loadSources();
       loadFeed();
+      loadDigest();
     }
-  }, [user, loadSources, loadFeed]);
+  }, [user, loadSources, loadFeed, loadDigest]);
 
   // ── Source actions ────────────────────────────
 
@@ -178,7 +221,10 @@ export default function IntelligencePage() {
     try {
       await newsApi.refresh();
       toast.success("Refresh started — new items will appear shortly");
-      setTimeout(() => loadFeed(), 3000);
+      setTimeout(() => {
+        loadFeed();
+        loadDigest();
+      }, 5000);
     } catch {
       toast.error("Failed to trigger refresh");
     } finally {
@@ -217,9 +263,10 @@ export default function IntelligencePage() {
 
   const entityNames = Array.from(new Set(items.map((i) => i.entity_name).filter(Boolean))) as string[];
 
-  const filteredItems = entityFilter
-    ? items.filter((i) => i.entity_name === entityFilter)
-    : items;
+  let filteredItems = items;
+  if (entityFilter) filteredItems = filteredItems.filter((i) => i.entity_name === entityFilter);
+  if (sentimentFilter) filteredItems = filteredItems.filter((i) => i.sentiment === sentimentFilter);
+  if (importanceFilter) filteredItems = filteredItems.filter((i) => i.importance === importanceFilter);
 
   if (!user) return null;
 
@@ -253,7 +300,7 @@ export default function IntelligencePage() {
           <h2 className="text-sm font-semibold">Configured Sources</h2>
           {sourcesLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading...
             </div>
           ) : sources.length === 0 ? (
             <p className="text-sm text-muted-foreground">No sources configured yet.</p>
@@ -337,13 +384,60 @@ export default function IntelligencePage() {
         </div>
       )}
 
+      {/* Trends Digest Card */}
+      {digest && (
+        <div className="rounded-lg border bg-gradient-to-r from-blue-50/60 to-purple-50/60 dark:from-blue-950/30 dark:to-purple-950/30 p-4 space-y-3">
+          <button
+            className="flex w-full items-center justify-between"
+            onClick={() => setDigestOpen((v) => !v)}
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <span className="font-semibold text-sm">Trends &amp; Insights</span>
+              {digest.overall_sentiment && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sentimentColor(digest.overall_sentiment)}`}>
+                  {digest.overall_sentiment}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground">
+                · {digest.item_count} items · {timeAgo(digest.created_at)}
+              </span>
+            </div>
+            {digestOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+          </button>
+
+          {digestOpen && (
+            <div className="space-y-3 pt-1">
+              {/* Top topics */}
+              {digest.top_topics && (
+                <div className="flex flex-wrap gap-1.5">
+                  {digest.top_topics.split(",").map((t) => t.trim()).filter(Boolean).map((topic) => (
+                    <span
+                      key={topic}
+                      className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+                    >
+                      {topic}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Summary bullets */}
+              <div className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+                {digest.summary}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="text-muted-foreground absolute left-2.5 top-2.5 h-4 w-4" />
           <Input
             className="pl-8"
-            placeholder="Search headlines…"
+            placeholder="Search headlines..."
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
           />
@@ -382,6 +476,31 @@ export default function IntelligencePage() {
           </select>
         )}
 
+        {/* Sentiment filter */}
+        <select
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+          value={sentimentFilter}
+          onChange={(e) => setSentimentFilter(e.target.value)}
+        >
+          <option value="">All sentiment</option>
+          <option value="positive">Positive</option>
+          <option value="negative">Negative</option>
+          <option value="neutral">Neutral</option>
+          <option value="mixed">Mixed</option>
+        </select>
+
+        {/* Importance filter */}
+        <select
+          className="h-9 rounded-md border bg-background px-2 text-sm"
+          value={importanceFilter}
+          onChange={(e) => setImportanceFilter(e.target.value)}
+        >
+          <option value="">All importance</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+
         {/* Entity filter */}
         {entityNames.length > 0 && (
           <select
@@ -403,7 +522,7 @@ export default function IntelligencePage() {
       {feedLoading ? (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          Loading feed…
+          Loading feed...
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-20 text-center">
@@ -433,18 +552,23 @@ export default function IntelligencePage() {
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className={`rounded-lg border p-4 transition-colors ${
+              className={`rounded-lg border p-4 transition-colors ${importanceBorder(item.importance)} ${
                 item.is_read ? "bg-muted/30 opacity-70" : "bg-background"
               }`}
             >
               <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1 space-y-1">
-                  {/* Source + time */}
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  {/* Source + sentiment + time */}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     {sourceTypeIcon(
                       sources.find((s) => s.id === item.intelligence_source_id)?.source_type ?? "rss"
                     )}
                     <span>{item.source_name}</span>
+                    {item.sentiment && (
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${sentimentColor(item.sentiment)}`}>
+                        {item.sentiment}
+                      </span>
+                    )}
                     <span>·</span>
                     <span>{timeAgo(item.fetched_at)}</span>
                   </div>
@@ -471,12 +595,30 @@ export default function IntelligencePage() {
                     </p>
                   )}
 
-                  {/* Portfolio badge */}
-                  {item.entity_name && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                      {item.entity_name}
-                    </span>
+                  {/* Insight */}
+                  {item.insight && (
+                    <div className="flex items-start gap-1.5 text-sm">
+                      <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                      <p className="italic text-muted-foreground">{item.insight}</p>
+                    </div>
                   )}
+
+                  {/* Topics + portfolio badge */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {item.topics && item.topics.split(",").map((t) => t.trim()).filter(Boolean).map((topic) => (
+                      <span
+                        key={topic}
+                        className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                      >
+                        {topic}
+                      </span>
+                    ))}
+                    {item.entity_name && (
+                      <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                        {item.entity_name}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Actions */}

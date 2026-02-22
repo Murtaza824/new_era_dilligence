@@ -10,10 +10,12 @@ logger = logging.getLogger(__name__)
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.models.intelligence_digest import IntelligenceDigest
 from app.models.intelligence_source import IntelligenceSource
 from app.models.news_item import NewsItem
 from app.models.user import User
 from app.schemas.news_item import (
+    IntelligenceDigestOut,
     IntelligenceSourceCreate,
     IntelligenceSourceOut,
     NewsItemOut,
@@ -127,6 +129,21 @@ def trigger_refresh(
 
     background_tasks.add_task(_run)
     return {"status": "refresh_started"}
+
+
+@router.get("/digest/latest", response_model=IntelligenceDigestOut)
+def get_latest_digest(
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    digest = (
+        db.query(IntelligenceDigest)
+        .order_by(desc(IntelligenceDigest.created_at))
+        .first()
+    )
+    if not digest:
+        raise HTTPException(404, "No digest available yet")
+    return digest
 
 
 @router.patch("/{item_id}", response_model=NewsItemOut)

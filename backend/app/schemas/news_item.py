@@ -40,9 +40,26 @@ class NewsItemOut(BaseModel):
     headline: str
     url: Optional[str] = None
     snippet: Optional[str] = None
+    sentiment: Optional[str] = None
+    topics: Optional[str] = None
+    insight: Optional[str] = None
+    importance: Optional[str] = None
     is_read: bool
     is_flagged: bool
     fetched_at: datetime
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── IntelligenceDigest schemas ─────────────────────────────────────────
+
+class IntelligenceDigestOut(BaseModel):
+    id: str
+    summary: str
+    top_topics: Optional[str] = None
+    overall_sentiment: Optional[str] = None
+    item_count: int
     created_at: datetime
 
     model_config = {"from_attributes": True}

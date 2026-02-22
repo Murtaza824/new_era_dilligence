@@ -314,9 +314,22 @@ export interface NewsItem {
   headline: string;
   url: string | null;
   snippet: string | null;
+  sentiment: "positive" | "negative" | "neutral" | "mixed" | null;
+  topics: string | null;
+  insight: string | null;
+  importance: "high" | "medium" | "low" | null;
   is_read: boolean;
   is_flagged: boolean;
   fetched_at: string;
+  created_at: string;
+}
+
+export interface IntelligenceDigest {
+  id: string;
+  summary: string;
+  top_topics: string | null;
+  overall_sentiment: string | null;
+  item_count: number;
   created_at: string;
 }
 

@@ -308,6 +308,31 @@ def _migrate_intro_suggestion_tracked_person():
             conn.commit()
 
 
+def _migrate_news_item_analysis_fields():
+    """Add sentiment, topics, insight, importance columns to news_items if missing."""
+    new_cols = [
+        ("sentiment", "VARCHAR"),
+        ("topics", "VARCHAR"),
+        ("insight", "TEXT"),
+        ("importance", "VARCHAR"),
+    ]
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(news_items)"))
+            except Exception:
+                return
+            cols = {row[1] for row in r.fetchall()}
+            for col, typ in new_cols:
+                if col not in cols:
+                    conn.execute(text(f"ALTER TABLE news_items ADD COLUMN {col} {typ}"))
+                    conn.commit()
+        else:
+            for col, typ in new_cols:
+                conn.execute(text(f"ALTER TABLE news_items ADD COLUMN IF NOT EXISTS {col} {typ}"))
+            conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
@@ -323,3 +348,4 @@ def init_db():
     _migrate_agent_job_extra_columns()
     _migrate_intro_suggestion_dealflow()
     _migrate_intro_suggestion_tracked_person()
+    _migrate_news_item_analysis_fields()

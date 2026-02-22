@@ -22,6 +22,10 @@ class NewsItem(Base):
     headline = Column(String, nullable=False)
     url = Column(String, nullable=True, unique=True)
     snippet = Column(Text, nullable=True)
+    sentiment = Column(String, nullable=True)   # positive | negative | neutral | mixed
+    topics = Column(String, nullable=True)       # comma-separated topic tags
+    insight = Column(Text, nullable=True)        # 1-2 sentence VC-relevant takeaway
+    importance = Column(String, nullable=True)   # high | medium | low
     is_read = Column(Boolean, nullable=False, default=False)
     is_flagged = Column(Boolean, nullable=False, default=False)
     fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
