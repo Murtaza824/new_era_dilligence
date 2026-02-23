@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -64,14 +64,6 @@ export default function DealflowDetailPage() {
   const [newDocUrl, setNewDocUrl] = useState("");
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const loadEntry = useCallback(() => {
-    dealflowApi.entries.get(entryId).then(setEntry).catch(() => router.push("/dealflow"));
-  }, [entryId, router]);
-
-  const loadDocuments = useCallback(() => {
-    dealflowApi.documents.list(entryId).then(setDocuments).catch(() => {});
-  }, [entryId]);
 
   useEffect(() => {
     if (!authLoading && !user) {

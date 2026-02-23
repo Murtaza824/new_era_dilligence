@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -52,6 +52,11 @@ export default function CompanyDetailPage() {
   const [editingLogo, setEditingLogo] = useState(false);
   const [logoUrlInput, setLogoUrlInput] = useState("");
   const [savingLogo, setSavingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingLogo) logoInputRef.current?.focus();
+  }, [editingLogo]);
 
   useEffect(() => {
     if (tabFromUrl && VALID_TABS.includes(tabFromUrl as Tab)) {
@@ -145,7 +150,7 @@ export default function CompanyDetailPage() {
                     if (e.key === "Escape") setEditingLogo(false);
                   }}
                   className="h-8 w-56 text-xs"
-                  autoFocus
+                  ref={logoInputRef}
                 />
                 <Button
                   size="icon-sm"
