@@ -365,11 +365,16 @@ def _migrate_user_name():
         else:
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR"))
             conn.commit()
-        # Populate empty names from email prefix (e.g. murtaza@… → Murtaza)
-        conn.execute(text(
-            "UPDATE users SET name = UPPER(SUBSTR(email, 1, 1)) || SUBSTR(email, 2, INSTR(email, '@') - 2) "
-            "WHERE name IS NULL"
-        ))
+        if "sqlite" in DATABASE_URL:
+            conn.execute(text(
+                "UPDATE users SET name = UPPER(SUBSTR(email, 1, 1)) || SUBSTR(email, 2, INSTR(email, '@') - 2) "
+                "WHERE name IS NULL"
+            ))
+        else:
+            conn.execute(text(
+                "UPDATE users SET name = UPPER(SUBSTR(email, 1, 1)) || SUBSTR(email, 2, POSITION('@' IN email) - 2) "
+                "WHERE name IS NULL"
+            ))
         conn.commit()
 
 
