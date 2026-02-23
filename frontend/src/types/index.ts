@@ -367,6 +367,7 @@ export interface DealflowEntry {
   founders: DealflowFounder[];
   document_count: number;
   promoted_company_id: string | null;
+  promoted_company_deal_status: string | null;
 }
 
 export interface DealflowDocument {

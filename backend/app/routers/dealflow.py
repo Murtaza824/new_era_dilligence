@@ -26,6 +26,7 @@ from app.schemas.dealflow import (
     DealflowEntryUpdate,
     DealflowFounderCreate,
     DealflowFounderOut,
+    DealflowFromNotesRequest,
     PromoteToDealRoomOut,
 )
 
@@ -48,9 +49,11 @@ def _entry_to_out(entry: DealflowEntry, db: Session) -> DealflowEntryOut:
         db.query(DealflowDocument).filter(DealflowDocument.dealflow_entry_id == entry.id).count()
     )
     promoted_company_id = None
+    promoted_company_deal_status = None
     company = db.query(Company).filter(Company.dealflow_entry_id == entry.id).first()
     if company:
         promoted_company_id = company.id
+        promoted_company_deal_status = getattr(company, "deal_status", None)
     return DealflowEntryOut(
         id=entry.id,
         name=entry.name,
@@ -71,6 +74,7 @@ def _entry_to_out(entry: DealflowEntry, db: Session) -> DealflowEntryOut:
         founders=[DealflowFounderOut.model_validate(f) for f in founders],
         document_count=doc_count,
         promoted_company_id=promoted_company_id,
+        promoted_company_deal_status=promoted_company_deal_status,
     )
 
 
@@ -125,6 +129,123 @@ def create_entry(
     db.refresh(entry)
     if body.founders:
         _set_founders(entry.id, body.founders, db)
+    background_tasks.add_task(_run_matchmaking_background, entry.id, "dealflow_entry_created")
+    return _entry_to_out(entry, db)
+
+
+_NOTES_EXTRACTION_SYSTEM = """You are a venture capital analyst. Extract structured deal information from meeting/call notes.
+Return ONLY valid JSON with these keys (use null for unknown fields):
+{
+  "name": "company or product name being discussed (NOT the person's name unless they ARE the company)",
+  "one_liner": "one sentence summary of what the company does",
+  "website": "company website if mentioned, or null",
+  "company_linkedin_url": "company LinkedIn URL if mentioned, or null",
+  "location": "city/region if mentioned, or null",
+  "stage": "one of: pre_seed, seed, series_a, series_b, growth, other — or null",
+  "amount_raising": "number in USD (no commas/symbols) or null",
+  "valuation": "number in USD (no commas/symbols) or null",
+  "founders": [{"name": "founder name", "linkedin_url": null, "email": null}],
+  "summary": "3-5 bullet point summary of the key takeaways from the call"
+}
+Do NOT wrap in markdown code fences. Return raw JSON only."""
+
+
+def _extract_deal_from_notes(notes_text: str) -> dict:
+    """Use LLM to extract structured deal fields from raw call notes."""
+    import json
+    import re
+    from app.llm import complete
+
+    raw = complete(
+        prompt=f"Extract deal information from these meeting notes:\n\n{notes_text}",
+        system=_NOTES_EXTRACTION_SYSTEM,
+        max_tokens=1024,
+    )
+    raw = re.sub(r"^```(?:json)?\s*", "", raw.strip())
+    raw = re.sub(r"\s*```\s*$", "", raw)
+    return json.loads(raw)
+
+
+def _try_fetch_url(url: str) -> Optional[str]:
+    """Best-effort fetch of a URL, returning extracted text or None."""
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+
+        resp = httpx.get(url, timeout=15, follow_redirects=True, headers={
+            "User-Agent": "Mozilla/5.0 (compatible; JarvisBot/1.0)"
+        })
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        return soup.get_text(separator="\n", strip=True)
+    except Exception as exc:
+        logger.warning("Failed to fetch URL %s: %s", url, exc)
+        return None
+
+
+@router.post("/entries/from-notes", response_model=DealflowEntryOut)
+def create_entry_from_notes(
+    body: DealflowFromNotesRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    notes_text = body.text
+    if not notes_text and body.url:
+        notes_text = _try_fetch_url(body.url)
+    if not notes_text or not notes_text.strip():
+        raise HTTPException(status_code=400, detail="Please provide call notes text or a valid URL")
+
+    try:
+        extracted = _extract_deal_from_notes(notes_text)
+    except Exception as exc:
+        logger.error("LLM extraction failed: %s", exc)
+        raise HTTPException(status_code=422, detail="Could not extract deal info from notes")
+
+    name = extracted.get("name")
+    if not name:
+        raise HTTPException(status_code=422, detail="Could not identify a company name from the notes")
+
+    summary = extracted.get("summary", "")
+    if isinstance(summary, list):
+        summary = "\n".join(f"• {s}" for s in summary)
+    full_notes = f"{summary}\n\n---\n\n{notes_text}" if summary else notes_text
+
+    entry = DealflowEntry(
+        name=name,
+        website=extracted.get("website"),
+        company_linkedin_url=extracted.get("company_linkedin_url"),
+        one_liner=extracted.get("one_liner"),
+        location=extracted.get("location"),
+        stage=extracted.get("stage"),
+        amount_raising=extracted.get("amount_raising"),
+        valuation=extracted.get("valuation"),
+        notes=full_notes,
+        source_type="call_notes",
+        source_detail=body.url or None,
+        status="none",
+        added_by_user_id=current_user.id,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+
+    founders = extracted.get("founders") or []
+    if founders:
+        founder_creates = [
+            DealflowFounderCreate(
+                name=f.get("name", "Unknown"),
+                linkedin_url=f.get("linkedin_url"),
+                email=f.get("email"),
+            )
+            for f in founders
+            if f.get("name")
+        ]
+        if founder_creates:
+            _set_founders(entry.id, founder_creates, db)
+
     background_tasks.add_task(_run_matchmaking_background, entry.id, "dealflow_entry_created")
     return _entry_to_out(entry, db)
 
@@ -459,54 +580,69 @@ def promote_to_deal_room(
             )
             db.add(doc)
         db.commit()
-    # Run matchmaking for newly promoted company
-    try:
-        from app.services.matchmaking import run_matchmaking_for_new_company
-        run_matchmaking_for_new_company(company.id, db, trigger="dealflow_promoted")
-    except Exception as exc:
-        logger.warning("Matchmaking after promote failed: %s", exc)
+    # Capture data needed by background tasks before returning
+    _company_id = company.id
+    _entry_id = entry_id
+    _entry_name = entry.name
+    _entry_one_liner = entry.one_liner
+    _entry_location = entry.location
+    _entry_notes = entry.notes
+    _has_docs = copy_documents and db.query(Document).filter(
+        Document.company_id == _company_id
+    ).count() > 0
+    _founder_names = ", ".join(
+        f.name for f in db.query(DealflowFounder).filter(
+            DealflowFounder.dealflow_entry_id == _entry_id
+        ).all()
+    )
 
-    # Auto-trigger memo generation if documents were copied and indexed
-    try:
-        from app.models.document import Document as DocModel
-        doc_count = db.query(DocModel).filter(DocModel.company_id == company.id).count()
-        if doc_count > 0:
-            from app.models.agent_job import AgentJob
-            from datetime import datetime, timezone
-            job = AgentJob(
-                type="memo_generate",
-                entity_type="company",
-                entity_id=company.id,
-                status="pending",
-                message="Auto-triggered on promote to Active Deals",
-            )
-            db.add(job)
-            db.commit()
-            db.refresh(job)
-            # Run in background thread so we don't block the response
-            import threading
-            from app.routers.memos import _run_memo_generation_background
-            threading.Thread(target=_run_memo_generation_background, args=(job.id,), daemon=True).start()
-    except Exception as exc:
-        logger.warning("Auto memo generation after promote failed: %s", exc)
+    import threading
 
-    # Seed RAG with dealflow context so agents have it immediately
-    try:
-        context_parts = [f"Company: {entry.name}"]
-        if entry.one_liner:
-            context_parts.append(f"One-liner: {entry.one_liner}")
-        if entry.location:
-            context_parts.append(f"Location: {entry.location}")
-        if entry.notes:
-            context_parts.append(f"Notes: {entry.notes}")
-        founders = db.query(DealflowFounder).filter(DealflowFounder.dealflow_entry_id == entry_id).all()
-        if founders:
-            names = ", ".join(f.name for f in founders)
-            context_parts.append(f"Founders: {names}")
-        if len(context_parts) > 1:
-            from app.services.rag import index_document as rag_index
-            rag_index(company.id, f"dealflow_context_{entry_id}", "\n".join(context_parts))
-    except Exception as exc:
-        logger.warning("RAG context seeding after promote failed: %s", exc)
+    def _post_promote_tasks():
+        from app.database import SessionLocal
+        bg_db = SessionLocal()
+        try:
+            from app.services.matchmaking import run_matchmaking_for_new_company
+            run_matchmaking_for_new_company(_company_id, bg_db, trigger="dealflow_promoted")
+        except Exception as exc:
+            logger.warning("Matchmaking after promote failed: %s", exc)
+
+        try:
+            if _has_docs:
+                from app.models.agent_job import AgentJob
+                job = AgentJob(
+                    type="memo_generate",
+                    entity_type="company",
+                    entity_id=_company_id,
+                    status="pending",
+                    message="Auto-triggered on promote to Active Deals",
+                )
+                bg_db.add(job)
+                bg_db.commit()
+                bg_db.refresh(job)
+                from app.routers.memos import _run_memo_generation_background
+                _run_memo_generation_background(job.id)
+        except Exception as exc:
+            logger.warning("Auto memo generation after promote failed: %s", exc)
+
+        try:
+            context_parts = [f"Company: {_entry_name}"]
+            if _entry_one_liner:
+                context_parts.append(f"One-liner: {_entry_one_liner}")
+            if _entry_location:
+                context_parts.append(f"Location: {_entry_location}")
+            if _entry_notes:
+                context_parts.append(f"Notes: {_entry_notes}")
+            if _founder_names:
+                context_parts.append(f"Founders: {_founder_names}")
+            if len(context_parts) > 1:
+                from app.services.rag import index_document as rag_index
+                rag_index(_company_id, f"dealflow_context_{_entry_id}", "\n".join(context_parts))
+        except Exception as exc:
+            logger.warning("RAG context seeding after promote failed: %s", exc)
+        finally:
+            bg_db.close()
+
+    threading.Thread(target=_post_promote_tasks, daemon=True).start()
 
     return PromoteToDealRoomOut(company_id=company.id)

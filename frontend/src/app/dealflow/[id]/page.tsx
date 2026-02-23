@@ -215,17 +215,17 @@ export default function DealflowDetailPage() {
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">{entry.name}</h1>
-          {entry.promoted_company_id && (
+          {entry.promoted_company_id && entry.promoted_company_deal_status === "active" && (
             <Link
               href={`/dealroom/${entry.promoted_company_id}`}
               className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-green-500/15 px-2.5 py-1 text-sm text-green-700 dark:text-green-400"
             >
               <Briefcase className="size-4" />
-              Already in Active Deals →
+              Active Deal →
             </Link>
           )}
         </div>
-        {!entry.promoted_company_id && (
+        {!(entry.promoted_company_id && entry.promoted_company_deal_status === "active") && (
           <Button
             onClick={() => setShowPromoteModal(true)}
             className="gap-1.5"

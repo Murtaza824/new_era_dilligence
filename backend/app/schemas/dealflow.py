@@ -73,7 +73,8 @@ class DealflowEntryOut(BaseModel):
     updated_at: datetime
     founders: list[DealflowFounderOut] = []
     document_count: int = 0
-    promoted_company_id: Optional[str] = None  # set when this entry was promoted to Deal Room
+    promoted_company_id: Optional[str] = None
+    promoted_company_deal_status: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -93,6 +94,11 @@ class DealflowDocumentOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class DealflowFromNotesRequest(BaseModel):
+    text: Optional[str] = None
+    url: Optional[str] = None
 
 
 class PromoteToDealRoomOut(BaseModel):

@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { ArrowRight, ExternalLink, Globe, LayoutList, Linkedin, Loader2, Plus, Search, Trash2, UserPlus } from "lucide-react";
+import { ArrowRight, ExternalLink, FileText, Globe, LayoutList, Linkedin, Loader2, Plus, Search, Trash2, UserPlus } from "lucide-react";
+import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -111,6 +112,12 @@ export default function DealflowPage() {
   const [newSourceType, setNewSourceType] = useState("");
   const [newSourceDetail, setNewSourceDetail] = useState("");
   const [newStatus, setNewStatus] = useState("none");
+
+  // Import notes modal state
+  const [showImportNotes, setShowImportNotes] = useState(false);
+  const [importNotesText, setImportNotesText] = useState("");
+  const [importNotesUrl, setImportNotesUrl] = useState("");
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -269,7 +276,7 @@ export default function DealflowPage() {
   };
 
   const handlePromoteToDealRoom = (entry: DealflowEntry) => {
-    if (entry.promoted_company_id) {
+    if (entry.promoted_company_id && entry.promoted_company_deal_status === "active") {
       router.push(`/dealroom/${entry.promoted_company_id}`);
       return;
     }
@@ -288,6 +295,27 @@ export default function DealflowPage() {
       const message = err instanceof Error ? err.message : "Failed to promote";
       toast.error(message);
       setPromotingId(null);
+    }
+  };
+
+  const handleImportNotes = async () => {
+    if (!importNotesText.trim() && !importNotesUrl.trim()) return;
+    setImporting(true);
+    try {
+      const created = await dealflowApi.entries.createFromNotes({
+        ...(importNotesText.trim() && { text: importNotesText.trim() }),
+        ...(importNotesUrl.trim() && { url: importNotesUrl.trim() }),
+      });
+      setList((prev) => [created, ...prev]);
+      setShowImportNotes(false);
+      setImportNotesText("");
+      setImportNotesUrl("");
+      toast.success(`"${created.name}" added from call notes`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to extract deal from notes";
+      toast.error(message);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -326,10 +354,16 @@ export default function DealflowPage() {
           </p>
         </div>
         {subTab === "companies" ? (
-          <Button onClick={() => setShowForm(!showForm)} size="sm">
-            <Plus className="mr-1.5 size-4" />
-            Add company
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowImportNotes(true)}>
+              <FileText className="mr-1.5 size-4" />
+              Import notes
+            </Button>
+            <Button onClick={() => setShowForm(!showForm)} size="sm">
+              <Plus className="mr-1.5 size-4" />
+              Add company
+            </Button>
+          </div>
         ) : (
           <Button onClick={() => setShowPersonForm(!showPersonForm)} size="sm">
             <Plus className="mr-1.5 size-4" />
@@ -571,12 +605,12 @@ export default function DealflowPage() {
                       >
                         <ExternalLink className="size-3.5" />
                       </Link>
-                      {e.promoted_company_id && (
+                      {e.promoted_company_id && e.promoted_company_deal_status === "active" && (
                         <Link
                           href={`/dealroom/${e.promoted_company_id}`}
                           className="rounded bg-green-500/15 px-1.5 py-0.5 text-xs text-green-700 dark:text-green-400 hover:underline shrink-0"
                         >
-                          In Active Deals
+                          Active Deal
                         </Link>
                       )}
                     </div>
@@ -788,7 +822,7 @@ export default function DealflowPage() {
                         onClick={() => handlePromoteToDealRoom(e)}
                         disabled={promotingId === e.id}
                         className="rounded p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-50"
-                        title={e.promoted_company_id ? "Open in Active Deals" : "Promote to Active Deals & open"}
+                        title={e.promoted_company_id && e.promoted_company_deal_status === "active" ? "Open in Active Deals" : "Promote to Active Deals"}
                       >
                         {promotingId === e.id ? (
                           <Loader2 className="size-4 animate-spin" />
@@ -822,6 +856,68 @@ export default function DealflowPage() {
         loading={promotingId === promoteTarget?.id}
         onConfirm={confirmPromote}
       />
+
+      {/* Import Notes Modal */}
+      <AlertDialogPrimitive.Root open={showImportNotes} onOpenChange={(open) => { if (!open && !importing) { setShowImportNotes(false); } }}>
+        <AlertDialogPrimitive.Portal>
+          <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+          <AlertDialogPrimitive.Content
+            className={cn(
+              "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2",
+              "rounded-xl border bg-card p-6 shadow-lg",
+              "data-[state=open]:animate-in data-[state=closed]:animate-out",
+              "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+              "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+              "data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]",
+              "data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
+            )}
+          >
+            <AlertDialogPrimitive.Title className="font-display text-lg font-semibold">
+              Import from call notes
+            </AlertDialogPrimitive.Title>
+            <AlertDialogPrimitive.Description className="mt-1 text-sm text-muted-foreground">
+              Paste your meeting notes and we&apos;ll extract the deal info automatically.
+            </AlertDialogPrimitive.Description>
+            <div className="mt-4 space-y-3">
+              <textarea
+                placeholder="Paste call notes here..."
+                value={importNotesText}
+                onChange={(e) => setImportNotesText(e.target.value)}
+                rows={8}
+                disabled={importing}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+              />
+              <Input
+                placeholder="Or paste a Granola link (optional)"
+                value={importNotesUrl}
+                onChange={(e) => setImportNotesUrl(e.target.value)}
+                disabled={importing}
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <AlertDialogPrimitive.Cancel asChild>
+                <Button variant="outline" size="sm" disabled={importing}>
+                  Cancel
+                </Button>
+              </AlertDialogPrimitive.Cancel>
+              <Button
+                size="sm"
+                disabled={importing || (!importNotesText.trim() && !importNotesUrl.trim())}
+                onClick={handleImportNotes}
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="mr-1.5 size-4 animate-spin" />
+                    Extracting deal info…
+                  </>
+                ) : (
+                  "Create deal"
+                )}
+              </Button>
+            </div>
+          </AlertDialogPrimitive.Content>
+        </AlertDialogPrimitive.Portal>
+      </AlertDialogPrimitive.Root>
       </>)}
 
       {/* ── People Tracker ──────────────────────────────────────── */}

@@ -519,6 +519,11 @@ export const dealflowApi = {
         method: "POST",
         body: JSON.stringify(body),
       }),
+    createFromNotes: (body: { text?: string; url?: string }) =>
+      request<DealflowEntry>("/dealflow/entries/from-notes", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     update: (id: string, body: DealflowEntryUpdateBody) =>
       request<DealflowEntry>(`/dealflow/entries/${id}`, {
         method: "PATCH",
