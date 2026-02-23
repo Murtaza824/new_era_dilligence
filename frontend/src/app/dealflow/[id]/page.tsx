@@ -107,7 +107,7 @@ export default function DealflowDetailPage() {
     setPromoting(true);
     try {
       const { company_id } = await dealflowApi.entries.promoteToDealRoom(entryId, true);
-      toast.success("Promoted to Deal Room");
+      toast.success("Promoted to Active Deals");
       setShowPromoteModal(false);
       router.push(`/dealroom/${company_id}`);
     } catch (e) {
@@ -121,18 +121,18 @@ export default function DealflowDetailPage() {
   const handleAddFounder = async () => {
     if (!newFounderName.trim()) return;
     try {
-      await dealflowApi.entries.addFounder(entryId, {
+      const created = await dealflowApi.entries.addFounder(entryId, {
         name: newFounderName.trim(),
         ...(newFounderLinkedIn.trim() && { linkedin_url: newFounderLinkedIn.trim() }),
         ...(newFounderTwitter.trim() && { twitter_url: newFounderTwitter.trim() }),
         ...(newFounderEmail.trim() && { email: newFounderEmail.trim() }),
       });
+      setEntry((prev) => prev ? { ...prev, founders: [...prev.founders, created] } : prev);
       setNewFounderName("");
       setNewFounderLinkedIn("");
       setNewFounderTwitter("");
       setNewFounderEmail("");
       setShowAddFounder(false);
-      loadEntry();
       toast.success("Founder added");
     } catch {
       toast.error("Failed to add founder");
@@ -143,7 +143,7 @@ export default function DealflowDetailPage() {
     if (!confirm(`Remove ${founder.name}?`)) return;
     try {
       await dealflowApi.entries.deleteFounder(entryId, founder.id);
-      loadEntry();
+      setEntry((prev) => prev ? { ...prev, founders: prev.founders.filter((f) => f.id !== founder.id) } : prev);
       toast.success("Founder removed");
     } catch {
       toast.error("Failed to remove");
@@ -155,8 +155,8 @@ export default function DealflowDetailPage() {
     if (!file) return;
     e.target.value = "";
     try {
-      await dealflowApi.documents.uploadFile(entryId, file, "pitch_deck");
-      loadDocuments();
+      const doc = await dealflowApi.documents.uploadFile(entryId, file, "pitch_deck");
+      setDocuments((prev) => [doc, ...prev]);
       toast.success("Document uploaded");
     } catch {
       toast.error("Upload failed");
@@ -165,13 +165,13 @@ export default function DealflowDetailPage() {
 
   const handleAddDocLink = async () => {
     try {
-      await dealflowApi.documents.addLink(entryId, {
+      const doc = await dealflowApi.documents.addLink(entryId, {
         type: newDocType,
         ...(newDocUrl.trim() && { url: newDocUrl.trim() }),
       });
+      setDocuments((prev) => [doc, ...prev]);
       setNewDocUrl("");
       setShowDocLink(false);
-      loadDocuments();
       toast.success("Document added");
     } catch {
       toast.error("Failed to add document");
@@ -190,7 +190,7 @@ export default function DealflowDetailPage() {
     if (!confirm("Delete this document?")) return;
     try {
       await dealflowApi.documents.delete(entryId, doc.id);
-      loadDocuments();
+      setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
       toast.success("Document deleted");
     } catch {
       toast.error("Failed to delete");
@@ -229,7 +229,7 @@ export default function DealflowDetailPage() {
               className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-green-500/15 px-2.5 py-1 text-sm text-green-700 dark:text-green-400"
             >
               <Briefcase className="size-4" />
-              Already in Deal Room →
+              Already in Active Deals →
             </Link>
           )}
         </div>
@@ -239,7 +239,7 @@ export default function DealflowDetailPage() {
             className="gap-1.5"
           >
             <Briefcase className="size-4" />
-            Promote to Deal Room
+            Promote to Active Deals
           </Button>
         )}
       </div>
@@ -548,8 +548,8 @@ export default function DealflowDetailPage() {
       <ConfirmDialog
         open={showPromoteModal}
         onOpenChange={setShowPromoteModal}
-        title={`Promote "${entry.name}" to Deal Room?`}
-        description="All dealflow info, founders, and documents will carry over. You can continue diligence from the Deal Room."
+        title={`Promote "${entry.name}" to Active Deals?`}
+        description="All dealflow info, founders, and documents will carry over. You can continue diligence from Active Deals."
         confirmLabel="Promote"
         loading={promoting}
         onConfirm={handlePromote}

@@ -117,8 +117,8 @@ export default function NetworkContactDetailPage() {
 
   const handleSuggestionStatus = async (id: string, status: "introduced" | "dismissed") => {
     try {
-      await networkApi.suggestions.updateStatus(id, status);
-      loadContactSuggestions();
+      const updated = await networkApi.suggestions.updateStatus(id, status);
+      setContactSuggestions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
       toast.success(status === "introduced" ? "Marked as introduced" : "Dismissed");
     } catch {
       toast.error("Failed to update");
@@ -565,7 +565,7 @@ export default function NetworkContactDetailPage() {
         <div id="intro-suggestions" className="md:col-span-2 rounded-xl border bg-card p-5 space-y-4 scroll-mt-6">
           <h2 className="font-semibold text-lg">Suggested introductions</h2>
           <p className="text-muted-foreground text-sm">
-            Intros the agent suggests for this contact — to companies in Deal Room, portfolio, or dealflow.
+            Intros the agent suggests for this contact — to companies in Active Deals, portfolio, or dealflow.
           </p>
           {loadingSuggestions ? (
             <p className="text-muted-foreground text-sm">Loading…</p>

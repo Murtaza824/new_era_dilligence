@@ -87,12 +87,12 @@ def generate_intro_reason(
     try:
         reason = complete(
             prompt=(
-                "Based on the following context, write a concise 1-3 sentence explanation "
-                "of why this introduction would be valuable. Be specific about the mutual benefit.\n\n"
+                "Based on the following context, write ONE short sentence (max 15 words) "
+                "explaining the mutual benefit of this introduction. No fluff.\n\n"
                 + "\n".join(context_parts)
             ),
-            system="You are a VC associate suggesting warm introductions. Be specific and actionable.",
-            max_tokens=200,
+            system="You are a VC associate. Write extremely concise intro reasons — one punchy sentence only.",
+            max_tokens=60,
         )
         return reason.strip()
     except Exception as e:

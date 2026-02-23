@@ -410,6 +410,7 @@ def _enrich_suggestion(s: ContactIntroductionSuggestion, db: Session) -> dict:
 def list_suggestions(
     db: Session = Depends(get_db),
     status_filter: Optional[str] = Query(None, alias="status", description="suggested | introduced | dismissed"),
+    target_type: Optional[str] = Query(None, description="company | portfolio | dealflow"),
     contact_id: Optional[str] = Query(None, description="Filter by network_contact_id"),
     company_id: Optional[str] = Query(None, description="Filter by target company"),
     portfolio_id: Optional[str] = Query(None, description="Filter by target portfolio"),
@@ -419,6 +420,8 @@ def list_suggestions(
     query = db.query(ContactIntroductionSuggestion)
     if status_filter:
         query = query.filter(ContactIntroductionSuggestion.status == status_filter)
+    if target_type:
+        query = query.filter(ContactIntroductionSuggestion.target_type == target_type)
     if contact_id:
         query = query.filter(ContactIntroductionSuggestion.network_contact_id == contact_id)
     if tracked_person_id:

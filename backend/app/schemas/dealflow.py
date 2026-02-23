@@ -97,4 +97,4 @@ class DealflowDocumentOut(BaseModel):
 
 class PromoteToDealRoomOut(BaseModel):
     company_id: str
-    message: str = "Promoted to Deal Room"
+    message: str = "Promoted to Active Deals"

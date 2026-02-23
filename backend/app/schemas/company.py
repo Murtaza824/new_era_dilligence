@@ -32,6 +32,7 @@ class CompanyOut(BaseModel):
     source_type: Optional[str] = None
     source_detail: Optional[str] = None
     company_linkedin_url: Optional[str] = None
+    deal_status: str = "active"
     created_at: datetime
     updated_at: datetime
     document_count: int = 0

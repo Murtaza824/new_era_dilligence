@@ -19,6 +19,7 @@ class AgentJobOut(BaseModel):
     entity_label: Optional[str] = None
     triggered_by_user_id: Optional[str] = None
     triggered_by_user_email: Optional[str] = None
+    triggered_by_user_name: Optional[str] = None
     duration_seconds: Optional[float] = None
 
     model_config = {"from_attributes": True}

@@ -31,8 +31,10 @@ def _seed_admin_if_empty():
             return
         password_hash = hash_password(ADMIN_DEFAULT_PASSWORD)
         for email in ADMIN_EMAILS:
+            name = email.split("@")[0].capitalize()
             user = User(
                 email=email.lower().strip(),
+                name=name,
                 role="admin",
                 password_hash=password_hash,
             )

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Bot, Send, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, Send, X } from "lucide-react";
 import Markdown from "react-markdown";
 
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,35 @@ interface Props {
   contextId?: string;
 }
 
+function ThinkingBlock({ text, isStreaming }: { text: string; isStreaming: boolean }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  if (!text) return null;
+
+  return (
+    <div className="mb-1.5">
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+      >
+        {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
+        {isStreaming ? "Thinking…" : "Thought process"}
+      </button>
+      {!collapsed && (
+        <div className="mt-1 border-l-2 border-muted-foreground/20 pl-2.5 text-[11px] leading-relaxed text-muted-foreground/60 whitespace-pre-wrap">
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AgentChatPanel({ isOpen, onClose, contextType, contextId }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [thinkingPhase, setThinkingPhase] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -41,25 +66,46 @@ export function AgentChatPanel({ isOpen, onClose, contextType, contextId }: Prop
     const userMsg: ChatMessage = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setStreaming(true);
+    setThinkingPhase(true);
 
-    let assistantContent = "";
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+    let thinkingContent = "";
+    let answerContent = "";
+    setMessages((prev) => [...prev, { role: "assistant", content: "", thinking: "" }]);
 
     try {
       for await (const event of agentChat.streamChat(text, messages, contextType, contextId)) {
-        if (event.type === "chunk" && event.content) {
-          assistantContent += event.content;
+        if (event.type === "thinking_chunk" && event.content) {
+          thinkingContent += event.content;
           setMessages((prev) => {
             const updated = [...prev];
-            updated[updated.length - 1] = { role: "assistant", content: assistantContent };
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: answerContent,
+              thinking: thinkingContent,
+            };
             return updated;
           });
-        }
-        if (event.type === "error") {
-          assistantContent = event.content || "Something went wrong.";
+        } else if (event.type === "chunk" && event.content) {
+          if (thinkingPhase) setThinkingPhase(false);
+          answerContent += event.content;
           setMessages((prev) => {
             const updated = [...prev];
-            updated[updated.length - 1] = { role: "assistant", content: assistantContent };
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: answerContent,
+              thinking: thinkingContent,
+            };
+            return updated;
+          });
+        } else if (event.type === "error") {
+          answerContent = event.content || "Something went wrong.";
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: answerContent,
+              thinking: thinkingContent,
+            };
             return updated;
           });
         }
@@ -67,13 +113,18 @@ export function AgentChatPanel({ isOpen, onClose, contextType, contextId }: Prop
     } catch {
       setMessages((prev) => {
         const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content: "Failed to connect to Jarvis." };
+        updated[updated.length - 1] = {
+          role: "assistant",
+          content: "Failed to connect to Jarvis.",
+          thinking: thinkingContent,
+        };
         return updated;
       });
     } finally {
       setStreaming(false);
+      setThinkingPhase(false);
     }
-  }, [input, streaming, messages, contextType, contextId]);
+  }, [input, streaming, messages, contextType, contextId, thinkingPhase]);
 
   if (!isOpen) return null;
 
@@ -86,8 +137,11 @@ export function AgentChatPanel({ isOpen, onClose, contextType, contextId }: Prop
             <Bot className="size-3.5 text-primary" />
           </div>
           <h2 className="font-display text-sm font-semibold">Jarvis</h2>
-          {streaming && (
-            <span className="text-xs text-muted-foreground animate-pulse">thinking…</span>
+          {streaming && thinkingPhase && (
+            <span className="text-[11px] text-muted-foreground animate-pulse">reasoning…</span>
+          )}
+          {streaming && !thinkingPhase && (
+            <span className="text-[11px] text-muted-foreground animate-pulse">writing…</span>
           )}
         </div>
         <button
@@ -109,41 +163,55 @@ export function AgentChatPanel({ isOpen, onClose, contextType, contextId }: Prop
             </div>
             <p className="text-sm font-medium">Chat with Jarvis</p>
             <p className="mt-1 max-w-[260px] text-xs text-muted-foreground">
-              Ask about companies, deals, memos, or anything else. Jarvis has context from the current page.
+              Ask about dealflow, portfolio, network, intelligence, or anything else.
+              Jarvis has context from the entire platform.
             </p>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={cn(
-              "flex gap-2",
-              msg.role === "user" ? "justify-end" : "justify-start",
-            )}
-          >
-            {msg.role === "assistant" && (
-              <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                <Bot className="size-3.5 text-primary" />
-              </div>
-            )}
+        {messages.map((msg, i) => {
+          const isLastMsg = i === messages.length - 1;
+          const isAssistant = msg.role === "assistant";
+
+          return (
             <div
+              key={i}
               className={cn(
-                "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted",
+                "flex gap-2",
+                msg.role === "user" ? "justify-end" : "justify-start",
               )}
             >
-              {msg.role === "assistant" ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:my-1 [&>ul]:my-1">
-                  <Markdown>{msg.content || "…"}</Markdown>
+              {isAssistant && (
+                <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Bot className="size-3.5 text-primary" />
                 </div>
-              ) : (
-                <p>{msg.content}</p>
               )}
+              <div
+                className={cn(
+                  "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+                  msg.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted",
+                )}
+              >
+                {isAssistant ? (
+                  <>
+                    <ThinkingBlock
+                      text={msg.thinking || ""}
+                      isStreaming={isLastMsg && streaming && thinkingPhase}
+                    />
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:my-1 [&>ul]:my-1">
+                      <Markdown>
+                        {msg.content || (msg.thinking ? "" : "…")}
+                      </Markdown>
+                    </div>
+                  </>
+                ) : (
+                  <p>{msg.content}</p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Input */}

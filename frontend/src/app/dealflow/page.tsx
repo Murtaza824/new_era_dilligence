@@ -13,7 +13,12 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { dealflowApi, trackedPersonsApi, type DealflowEntryCreateBody, type DealflowEntryUpdateBody, type TrackedPersonCreateBody } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import type { DealflowEntry, TrackedPerson } from "@/types";
+
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -23,6 +28,14 @@ const STATUS_OPTIONS = [
   { value: "passed", label: "Passed" },
   { value: "invested", label: "Invested" },
 ];
+
+const STATUS_COLORS: Record<string, string> = {
+  none: "bg-muted text-muted-foreground",
+  reached_out: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  in_diligence: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  passed: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
+  invested: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+};
 
 const SOURCE_OPTIONS = [
   { value: "", label: "All sources" },
@@ -144,13 +157,13 @@ export default function DealflowPage() {
         ...(newPersonNotes.trim() && { notes: newPersonNotes.trim() }),
         ...(newPersonSource && { source: newPersonSource }),
       };
-      await trackedPersonsApi.create(body);
+      const created = await trackedPersonsApi.create(body);
+      setPeople((prev) => [created, ...prev]);
       setNewPersonName("");
       setNewPersonLinkedIn("");
       setNewPersonNotes("");
       setNewPersonSource("");
       setShowPersonForm(false);
-      loadPeople();
       toast.success("Person added");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to add person";
@@ -164,8 +177,8 @@ export default function DealflowPage() {
     if (!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
     try {
       await trackedPersonsApi.delete(p.id);
+      setPeople((prev) => prev.filter((x) => x.id !== p.id));
       toast.success(`"${p.name}" removed`);
-      loadPeople();
     } catch {
       toast.error("Failed to delete");
     }
@@ -220,7 +233,8 @@ export default function DealflowPage() {
         ...(newSourceType && { source_type: newSourceType }),
         ...(newSourceDetail.trim() && { source_detail: newSourceDetail.trim() }),
       };
-      await dealflowApi.entries.create(body);
+      const created = await dealflowApi.entries.create(body);
+      setList((prev) => [created, ...prev]);
       setNewName("");
       setNewWebsite("");
       setNewCompanyLinkedIn("");
@@ -234,7 +248,6 @@ export default function DealflowPage() {
       setNewSourceDetail("");
       setNewStatus("none");
       setShowForm(false);
-      load();
       toast.success("Company added to dealflow");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to add company";
@@ -248,8 +261,8 @@ export default function DealflowPage() {
     if (!confirm(`Delete "${entry.name}" from dealflow? This cannot be undone.`)) return;
     try {
       await dealflowApi.entries.delete(entry.id);
+      setList((prev) => prev.filter((x) => x.id !== entry.id));
       toast.success(`"${entry.name}" removed`);
-      load();
     } catch {
       toast.error("Failed to delete");
     }
@@ -268,7 +281,7 @@ export default function DealflowPage() {
     setPromotingId(promoteTarget.id);
     try {
       const { company_id } = await dealflowApi.entries.promoteToDealRoom(promoteTarget.id, true);
-      toast.success("Promoted to Deal Room");
+      toast.success("Promoted to Active Deals");
       setPromoteTarget(null);
       router.push(`/dealroom/${company_id}`);
     } catch (err) {
@@ -563,7 +576,7 @@ export default function DealflowPage() {
                           href={`/dealroom/${e.promoted_company_id}`}
                           className="rounded bg-green-500/15 px-1.5 py-0.5 text-xs text-green-700 dark:text-green-400 hover:underline shrink-0"
                         >
-                          In Deal Room
+                          In Active Deals
                         </Link>
                       )}
                     </div>
@@ -613,7 +626,7 @@ export default function DealflowPage() {
                         onClick={() => setEditing({ id: e.id, field: "stage" })}
                         onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "stage" })}
                       >
-                        {e.stage || "—"}
+                        {e.stage ? titleCase(e.stage) : "—"}
                       </span>
                     )}
                   </td>
@@ -723,7 +736,7 @@ export default function DealflowPage() {
                         onClick={() => setEditing({ id: e.id, field: "source_type" })}
                         onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "source_type" })}
                       >
-                        {e.source_type || "—"}
+                        {e.source_type ? titleCase(e.source_type) : "—"}
                       </span>
                     )}
                   </td>
@@ -743,12 +756,14 @@ export default function DealflowPage() {
                       <span
                         role="button"
                         tabIndex={0}
-                        className="rounded bg-muted px-1.5 py-0.5 text-xs cursor-text hover:ring-1 hover:ring-muted-foreground/30"
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-xs cursor-text hover:ring-1 hover:ring-foreground/20 whitespace-nowrap",
+                          STATUS_COLORS[e.status] ?? "bg-muted text-muted-foreground",
+                        )}
                         onClick={() => setEditing({ id: e.id, field: "status" })}
                         onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "status" })}
                       >
-                        {e.status}
-                      </span>
+                        {titleCase(e.status)}
                     )}
                   </td>
                   <td className="text-muted-foreground p-3 text-sm">
@@ -772,7 +787,7 @@ export default function DealflowPage() {
                         onClick={() => handlePromoteToDealRoom(e)}
                         disabled={promotingId === e.id}
                         className="rounded p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-50"
-                        title={e.promoted_company_id ? "Open in Deal Room" : "Promote to Deal Room & open"}
+                        title={e.promoted_company_id ? "Open in Active Deals" : "Promote to Active Deals & open"}
                       >
                         {promotingId === e.id ? (
                           <Loader2 className="size-4 animate-spin" />
@@ -800,8 +815,8 @@ export default function DealflowPage() {
       <ConfirmDialog
         open={!!promoteTarget}
         onOpenChange={(open) => { if (!open) setPromoteTarget(null); }}
-        title={`Promote "${promoteTarget?.name}" to Deal Room?`}
-        description="All dealflow info, founders, and documents will carry over. You can continue diligence from the Deal Room."
+        title={`Promote "${promoteTarget?.name}" to Active Deals?`}
+        description="All dealflow info, founders, and documents will carry over. You can continue diligence from Active Deals."
         confirmLabel="Promote"
         loading={promotingId === promoteTarget?.id}
         onConfirm={confirmPromote}

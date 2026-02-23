@@ -107,7 +107,15 @@ export function AgentActivityPanel({ isOpen, onClose }: Props) {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">{jobTypeLabel(job.type)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{jobTypeLabel(job.type)}</p>
+                      {(job.triggered_by_user_name || job.triggered_by_user_email) && (
+                        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                          <User className="size-2.5" />
+                          {job.triggered_by_user_name || job.triggered_by_user_email!.split("@")[0]}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-muted-foreground truncate text-xs">{label}</p>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                       <span>
@@ -124,12 +132,6 @@ export function AgentActivityPanel({ isOpen, onClose }: Props) {
                         </span>
                       )}
                     </div>
-                    {job.triggered_by_user_email && (
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                        <User className="size-3" />
-                        {job.triggered_by_user_email.split("@")[0]}
-                      </p>
-                    )}
                     {job.status === "failed" && job.error && (
                       <p className="mt-1 truncate text-xs text-destructive" title={job.error}>
                         {job.error}

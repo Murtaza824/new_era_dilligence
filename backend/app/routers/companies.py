@@ -1,8 +1,9 @@
 """Company CRUD router."""
 import json
 import logging
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -48,8 +49,14 @@ def create_company(body: CompanyCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=list[CompanyOut])
-def list_companies(db: Session = Depends(get_db)):
-    companies = db.query(Company).order_by(Company.created_at.desc()).all()
+def list_companies(
+    status: Optional[str] = Query(None, description="Filter by deal_status (active, archived, passed). Omit for all."),
+    db: Session = Depends(get_db),
+):
+    q = db.query(Company)
+    if status:
+        q = q.filter(Company.deal_status == status)
+    companies = q.order_by(Company.created_at.desc()).all()
     return [_enrich(c, db) for c in companies]
 
 
@@ -79,6 +86,24 @@ def delete_company(company_id: str, db: Session = Depends(get_db)):
     db.delete(company)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/{company_id}/status", response_model=CompanyOut)
+def update_deal_status(
+    company_id: str,
+    status: str = Query(..., description="New deal status: active, archived, or passed"),
+    db: Session = Depends(get_db),
+):
+    """Update a company's deal status (active / archived / passed)."""
+    if status not in ("active", "archived", "passed"):
+        raise HTTPException(status_code=400, detail="Status must be active, archived, or passed")
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    company.deal_status = status
+    db.commit()
+    db.refresh(company)
+    return _enrich(company, db)
 
 
 @router.post("/{company_id}/add-to-portfolio", response_model=PortfolioSnapshotOut)
@@ -279,6 +304,7 @@ def _enrich(company: Company, db: Session) -> dict:
         "source_type": company.source_type,
         "source_detail": company.source_detail,
         "company_linkedin_url": company.company_linkedin_url,
+        "deal_status": company.deal_status or "active",
         "created_at": company.created_at,
         "updated_at": company.updated_at,
         "document_count": doc_count,

@@ -71,6 +71,7 @@ export default function NetworkPage() {
   const [lpFilter, setLpFilter] = useState("");
   const [warmFilter, setWarmFilter] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("suggested");
+  const [targetTypeFilter, setTargetTypeFilter] = useState<string>("");
 
   const [showAddContact, setShowAddContact] = useState(false);
   const [newName, setNewName] = useState("");
@@ -110,11 +111,12 @@ export default function NetworkPage() {
     networkApi.suggestions
       .list({
         ...(statusFilter && { status: statusFilter }),
+        ...(targetTypeFilter && { target_type: targetTypeFilter }),
       })
       .then(setSuggestions)
       .catch(() => toast.error("Failed to load suggestions"))
       .finally(() => setLoadingSuggestions(false));
-  }, [statusFilter]);
+  }, [statusFilter, targetTypeFilter]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -169,7 +171,7 @@ export default function NetworkPage() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      await networkApi.contacts.create({
+      const created = await networkApi.contacts.create({
         name: newName.trim(),
         ...(newEmail.trim() && { email: newEmail.trim() }),
         ...(newPhone.trim() && { phone_number: newPhone.trim() }),
@@ -184,6 +186,7 @@ export default function NetworkPage() {
         nev_syndicate_lp: newNevSyndicateLp,
         ...(selectedAddedBy && { added_by_user_id: selectedAddedBy }),
       });
+      setContacts((prev) => [created, ...prev]);
       setNewName("");
       setNewEmail("");
       setNewPhone("");
@@ -197,8 +200,6 @@ export default function NetworkPage() {
       setNewNevFundILp(false);
       setNewNevSyndicateLp(false);
       setShowAddContact(false);
-      loadContacts();
-      loadSuggestions();
       toast.success("Contact added; new intros may appear below.");
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Failed to add contact";
@@ -243,9 +244,9 @@ export default function NetworkPage() {
     setDeleting(true);
     try {
       await networkApi.contacts.delete(deleteTarget.id);
+      setContacts((prev) => prev.filter((c) => c.id !== deleteTarget.id));
       toast.success(`"${deleteTarget.name}" removed`);
       setDeleteTarget(null);
-      loadContacts();
     } catch {
       toast.error("Failed to delete");
     } finally {
@@ -255,8 +256,8 @@ export default function NetworkPage() {
 
   const handleSuggestionStatus = async (id: string, status: "introduced" | "dismissed") => {
     try {
-      await networkApi.suggestions.updateStatus(id, status);
-      loadSuggestions();
+      const updated = await networkApi.suggestions.updateStatus(id, status);
+      setSuggestions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
       toast.success(status === "introduced" ? "Marked as introduced" : "Dismissed");
     } catch {
       toast.error("Failed to update");
@@ -659,18 +660,33 @@ export default function NetworkPage() {
         {/* Introductions tab */}
         {activeTab === "introductions" && (
           <div className="space-y-6">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Status:</span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="rounded-md border bg-background px-2 py-1 text-sm"
-              >
-                <option value="suggested">Suggested</option>
-                <option value="introduced">Introduced</option>
-                <option value="dismissed">Dismissed</option>
-                <option value="">All</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Status:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="rounded-md border bg-background px-2 py-1 text-sm"
+                >
+                  <option value="suggested">Suggested</option>
+                  <option value="introduced">Introduced</option>
+                  <option value="dismissed">Dismissed</option>
+                  <option value="">All</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Source:</span>
+                <select
+                  value={targetTypeFilter}
+                  onChange={(e) => setTargetTypeFilter(e.target.value)}
+                  className="rounded-md border bg-background px-2 py-1 text-sm"
+                >
+                  <option value="">All</option>
+                  <option value="portfolio">Portfolio</option>
+                  <option value="dealflow">Dealflow</option>
+                  <option value="company">Active Deals</option>
+                </select>
+              </div>
             </div>
 
             {loadingSuggestions ? (

@@ -21,7 +21,7 @@ interface Props {
   fundSize: number;
 }
 
-const EXIT_MULTIPLES = [0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50];
+const EXIT_MULTIPLES = [0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30, 50, 75, 100, 200, 500, 1000];
 
 function fmt$(n: number): string {
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
@@ -37,17 +37,12 @@ function fmtPct(n: number): string {
 export function OutcomeAnalysisTab({ entryValuation, checkSize, fundSize }: Props) {
   const initialOwnershipPct = entryValuation > 0 ? (checkSize / entryValuation) * 100 : 0;
 
-  const [ownershipAtExitPct, setOwnershipAtExitPct] = useState(() =>
-    Math.round(initialOwnershipPct * 0.6 * 100) / 100
-  );
   const [futureRounds, setFutureRounds] = useState(2);
   const [dilutionPerRound, setDilutionPerRound] = useState(20);
-  const [mode, setMode] = useState<"direct" | "rounds">("rounds");
 
   const effectiveOwnershipPct = useMemo(() => {
-    if (mode === "direct") return ownershipAtExitPct;
     return initialOwnershipPct * Math.pow(1 - dilutionPerRound / 100, futureRounds);
-  }, [mode, ownershipAtExitPct, initialOwnershipPct, dilutionPerRound, futureRounds]);
+  }, [initialOwnershipPct, dilutionPerRound, futureRounds]);
 
   const rows = useMemo(() => {
     const ownershipFrac = effectiveOwnershipPct / 100;
@@ -55,14 +50,14 @@ export function OutcomeAnalysisTab({ entryValuation, checkSize, fundSize }: Prop
       const exitVal = entryValuation * mult;
       const ourReturn = exitVal * ownershipFrac;
       const moic = checkSize > 0 ? ourReturn / checkSize : 0;
-      const fundImpactPct = fundSize > 0 ? (ourReturn / fundSize) * 100 : 0;
+      const dpi = fundSize > 0 ? ourReturn / fundSize : 0;
       return {
         multiple: mult,
         exitValuation: exitVal,
         ownershipPct: effectiveOwnershipPct,
         ourReturn,
         moic,
-        fundImpactPct,
+        dpi,
       };
     });
   }, [entryValuation, checkSize, fundSize, effectiveOwnershipPct]);
@@ -116,81 +111,41 @@ export function OutcomeAnalysisTab({ entryValuation, checkSize, fundSize }: Prop
           </div>
         </div>
 
-        {/* Dilution mode toggle */}
-        <div className="flex gap-1 rounded-lg border bg-muted p-1 w-fit">
-          <button
-            type="button"
-            onClick={() => setMode("rounds")}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              mode === "rounds"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Rounds + Dilution
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("direct")}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              mode === "direct"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Direct Ownership
-          </button>
+        {/* Dilution assumptions */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div>
+            <Label className="text-xs">Future Rounds</Label>
+            <Input
+              type="number"
+              min={0}
+              max={10}
+              value={futureRounds}
+              onChange={(e) => setFutureRounds(Math.max(0, Number(e.target.value)))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Dilution per Round (%)</Label>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              step={5}
+              value={dilutionPerRound}
+              onChange={(e) => setDilutionPerRound(Math.max(0, Math.min(100, Number(e.target.value))))}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Ownership at Exit</Label>
+            <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm font-medium">
+              {fmtPct(effectiveOwnershipPct)}
+            </div>
+          </div>
         </div>
-
-        {mode === "rounds" ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <div>
-              <Label className="text-xs">Future Rounds</Label>
-              <Input
-                type="number"
-                min={0}
-                max={10}
-                value={futureRounds}
-                onChange={(e) => setFutureRounds(Math.max(0, Number(e.target.value)))}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Dilution per Round (%)</Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                step={5}
-                value={dilutionPerRound}
-                onChange={(e) => setDilutionPerRound(Math.max(0, Math.min(100, Number(e.target.value))))}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Ownership at Exit (computed)</Label>
-              <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm font-medium">
-                {fmtPct(effectiveOwnershipPct)}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <div>
-              <Label className="text-xs">Ownership at Exit (%)</Label>
-              <Input
-                type="number"
-                min={0}
-                step={0.01}
-                value={ownershipAtExitPct}
-                onChange={(e) => setOwnershipAtExitPct(Math.max(0, Number(e.target.value)))}
-              />
-            </div>
-          </div>
-        )}
 
         <p className="text-muted-foreground text-xs">
           Diluted from {fmtPct(initialOwnershipPct)} to{" "}
           <span className="font-semibold text-foreground">{fmtPct(effectiveOwnershipPct)}</span>
-          {mode === "rounds" && ` over ${futureRounds} round${futureRounds !== 1 ? "s" : ""} at ${dilutionPerRound}% each`}.
+          {` over ${futureRounds} round${futureRounds !== 1 ? "s" : ""} at ${dilutionPerRound}% each`}.
         </p>
       </div>
 
@@ -240,7 +195,7 @@ export function OutcomeAnalysisTab({ entryValuation, checkSize, fundSize }: Prop
                 <th className="pb-2 pr-4">Ownership at Exit</th>
                 <th className="pb-2 pr-4">Our Return</th>
                 <th className="pb-2 pr-4">MOIC</th>
-                <th className="pb-2">Fund Impact</th>
+                <th className="pb-2">DPI</th>
               </tr>
             </thead>
             <tbody>
@@ -260,7 +215,9 @@ export function OutcomeAnalysisTab({ entryValuation, checkSize, fundSize }: Prop
                     <td className={`py-3 pr-4 ${isBreakeven ? "text-green-600 dark:text-green-400" : ""}`}>
                       {r.moic.toFixed(2)}x
                     </td>
-                    <td className="py-3">{fmtPct(r.fundImpactPct)}</td>
+                    <td className={`py-3 ${r.dpi >= 1 ? "font-medium text-green-600 dark:text-green-400" : ""}`}>
+                      {r.dpi.toFixed(2)}x
+                    </td>
                   </tr>
                 );
               })}

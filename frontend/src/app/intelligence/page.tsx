@@ -189,11 +189,11 @@ export default function IntelligencePage() {
         name: newSourceName.trim(),
         identifier: newSourceIdentifier.trim(),
       };
-      await newsApi.sources.create(body);
+      const created = await newsApi.sources.create(body);
+      setSources((prev) => [created, ...prev]);
       toast.success("Source added");
       setNewSourceName("");
       setNewSourceIdentifier("");
-      loadSources();
     } catch {
       toast.error("Failed to add source");
     } finally {
@@ -220,14 +220,18 @@ export default function IntelligencePage() {
     setRefreshing(true);
     try {
       await newsApi.refresh();
-      toast.success("Refresh started — new items will appear shortly");
-      setTimeout(() => {
-        loadFeed();
-        loadDigest();
-      }, 5000);
+      toast.success("Refreshing sources...");
+      const poll = (attempt: number) => {
+        setTimeout(async () => {
+          await loadFeed();
+          await loadDigest();
+          if (attempt < 2) poll(attempt + 1);
+          else setRefreshing(false);
+        }, 2000);
+      };
+      poll(0);
     } catch {
       toast.error("Failed to trigger refresh");
-    } finally {
       setRefreshing(false);
     }
   }

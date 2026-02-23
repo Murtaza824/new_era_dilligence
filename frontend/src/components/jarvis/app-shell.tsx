@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { label: "Dealflow", href: "/dealflow", icon: LayoutList },
-  { label: "Deal Room", href: "/dealroom", icon: Building2 },
+  { label: "Active Deals", href: "/dealroom", icon: Building2 },
   { label: "Portfolio", href: "/portfolio", icon: Briefcase },
   { label: "Network", href: "/network", icon: Users },
   { label: "Intelligence", href: "/intelligence", icon: Newspaper },
@@ -46,21 +46,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Top navigation bar - fixed so it never scrolls away */}
       <header className="bg-background/95 fixed inset-x-0 top-0 z-50 border-b backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between pl-3 pr-6">
+        <div className="mx-auto flex h-16 max-w-7xl items-center gap-8 px-6">
           {/* Logo + branding */}
           <Link
             href={user ? "/dealroom" : "/"}
-            className="flex items-baseline gap-2 font-display tracking-tight"
+            className="flex shrink-0 flex-col leading-tight"
           >
-            <span className="text-muted-foreground text-sm font-medium">
+            <span className="text-sm font-semibold tracking-tight">
               New Era Ventures
             </span>
-            <span className="text-foreground/80 text-sm">·</span>
-            <span className="text-lg font-bold">Jarvis</span>
+            <span className="text-[11px] text-muted-foreground">
+              Intelligence Platform
+            </span>
           </Link>
 
-          {/* Nav links (only when logged in) */}
-          <nav className="flex items-center gap-1">
+          {/* Nav links (only when logged in) — centered with flex-1 */}
+          <nav className="flex flex-1 items-center gap-1">
             {user &&
               NAV_ITEMS.map((item) => {
                 const isActive =
@@ -84,7 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* Right side */}
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1">
             {user && (
               <Button
                 variant={chatPanelOpen ? "secondary" : "ghost"}
@@ -124,7 +125,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 className="text-muted-foreground gap-1.5"
               >
                 <LogOut className="size-4" />
-                Sign out
               </Button>
             )}
             <ThemeToggle />
@@ -133,10 +133,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Page content + optional activity panel */}
-      <div className="flex pt-14">
+      <div className="flex pt-16">
         <main className="min-w-0 flex-1">{children}</main>
         {user && chatPanelOpen && (
-          <div className="h-[calc(100vh-3.5rem)] shrink-0">
+          <div className="h-[calc(100vh-4rem)] shrink-0">
             <AgentChatPanel
               isOpen={true}
               onClose={() => setChatPanelOpen(false)}
@@ -146,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
         {user && activityPanelOpen && (
-          <div className="h-[calc(100vh-3.5rem)] shrink-0">
+          <div className="h-[calc(100vh-4rem)] shrink-0">
             <AgentActivityPanel
               isOpen={true}
               onClose={() => setActivityPanelOpen(false)}

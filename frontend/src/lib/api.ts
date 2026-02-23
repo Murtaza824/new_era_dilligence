@@ -50,7 +50,7 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   return res.json();
 }
 
-const AUTH_TIMEOUT_MS = 15_000;
+const AUTH_TIMEOUT_MS = 30_000;
 
 async function authRequest<T>(path: string, opts?: RequestInit): Promise<T> {
   const controller = new AbortController();
@@ -124,6 +124,7 @@ export const activity = {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  thinking?: string;
   timestamp?: string;
 }
 
@@ -193,7 +194,12 @@ export const authApi = {
 // ── Companies ────────────────────────────────────────────────────────────
 
 export const companies = {
-  list: () => request<Company[]>("/companies"),
+  list: (params?: { status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<Company[]>(`/companies${qs ? `?${qs}` : ""}`);
+  },
 
   get: (id: string) => request<Company>(`/companies/${id}`),
 
@@ -220,6 +226,9 @@ export const companies = {
 
   delete: (id: string) =>
     request<{ ok: boolean }>(`/companies/${id}`, { method: "DELETE" }),
+
+  updateStatus: (id: string, status: string) =>
+    request<Company>(`/companies/${id}/status?status=${encodeURIComponent(status)}`, { method: "POST" }),
 };
 
 // ── Documents ────────────────────────────────────────────────────────────
@@ -402,9 +411,10 @@ export const networkApi = {
     },
   },
   suggestions: {
-    list: (params?: { status?: string; contact_id?: string; company_id?: string; portfolio_id?: string; dealflow_entry_id?: string; tracked_person_id?: string }) => {
+    list: (params?: { status?: string; target_type?: string; contact_id?: string; company_id?: string; portfolio_id?: string; dealflow_entry_id?: string; tracked_person_id?: string }) => {
       const sp = new URLSearchParams();
       if (params?.status) sp.set("status", params.status);
+      if (params?.target_type) sp.set("target_type", params.target_type);
       if (params?.contact_id) sp.set("contact_id", params.contact_id);
       if (params?.company_id) sp.set("company_id", params.company_id);
       if (params?.portfolio_id) sp.set("portfolio_id", params.portfolio_id);

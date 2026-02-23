@@ -333,6 +333,46 @@ def _migrate_news_item_analysis_fields():
             conn.commit()
 
 
+def _migrate_company_deal_status():
+    """Add deal_status column to companies table."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(companies)"))
+            except Exception:
+                return
+            cols = {row[1] for row in r.fetchall()}
+            if "deal_status" not in cols:
+                conn.execute(text("ALTER TABLE companies ADD COLUMN deal_status TEXT DEFAULT 'active' NOT NULL"))
+                conn.commit()
+        else:
+            conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS deal_status TEXT DEFAULT 'active' NOT NULL"))
+            conn.commit()
+
+
+def _migrate_user_name():
+    """Add name column to users table and populate from email prefix."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(users)"))
+            except Exception:
+                return
+            cols = {row[1] for row in r.fetchall()}
+            if "name" not in cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR"))
+                conn.commit()
+        else:
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR"))
+            conn.commit()
+        # Populate empty names from email prefix (e.g. murtaza@… → Murtaza)
+        conn.execute(text(
+            "UPDATE users SET name = UPPER(SUBSTR(email, 1, 1)) || SUBSTR(email, 2, INSTR(email, '@') - 2) "
+            "WHERE name IS NULL"
+        ))
+        conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
@@ -349,3 +389,5 @@ def init_db():
     _migrate_intro_suggestion_dealflow()
     _migrate_intro_suggestion_tracked_person()
     _migrate_news_item_analysis_fields()
+    _migrate_company_deal_status()
+    _migrate_user_name()

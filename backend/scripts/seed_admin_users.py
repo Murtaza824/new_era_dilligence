@@ -39,8 +39,10 @@ def main():
             if existing:
                 print(f"User {email} already exists, skipping.")
                 continue
+            name = email.split("@")[0].capitalize()
             user = User(
                 email=email.lower().strip(),
+                name=name,
                 role="admin",
                 password_hash=password_hash,
             )

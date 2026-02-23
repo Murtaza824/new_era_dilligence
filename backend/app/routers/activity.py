@@ -32,12 +32,14 @@ def _job_to_out(job: AgentJob, db: Session) -> dict:
         duration = (datetime.now(timezone.utc) - start).total_seconds()
 
     triggered_email = None
+    triggered_name = None
     user_id = getattr(job, "triggered_by_user_id", None)
     if user_id:
         from app.models.user import User
         u = db.query(User).filter(User.id == user_id).first()
         if u:
             triggered_email = u.email
+            triggered_name = getattr(u, "name", None) or u.email.split("@")[0].capitalize()
 
     out = {
         "id": job.id,
@@ -54,6 +56,7 @@ def _job_to_out(job: AgentJob, db: Session) -> dict:
         "entity_label": None,
         "triggered_by_user_id": user_id,
         "triggered_by_user_email": triggered_email,
+        "triggered_by_user_name": triggered_name,
         "duration_seconds": round(duration, 1) if duration is not None else None,
     }
     if job.entity_type == "company":
@@ -139,6 +142,7 @@ async def _sse_activity_stream():
                         "updated_at": j["updated_at"].isoformat() if j["updated_at"] else None,
                         "entity_label": j.get("entity_label"),
                         "triggered_by_user_email": j.get("triggered_by_user_email"),
+                        "triggered_by_user_name": j.get("triggered_by_user_name"),
                         "duration_seconds": j.get("duration_seconds"),
                     }
                     for j in jobs_data

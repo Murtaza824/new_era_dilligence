@@ -29,6 +29,10 @@ import { portfolioApi, memos as memosApi } from "@/lib/api";
 import { overviewAsParagraph, parseFoundersFromTeamContent } from "@/lib/memo-overview";
 import type { PortfolioSnapshot, PortfolioUpdateEntry, Memo, SimulationRun } from "@/types";
 
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function fmt$(n: number | null): string {
   if (n == null) return "—";
   if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
@@ -149,10 +153,10 @@ export default function PortfolioDetailPage() {
     if (!updateContent.trim()) return;
     setSubmitting(true);
     try {
-      await portfolioApi.addUpdate(entryId, updateContent.trim(), updateSource);
+      const created = await portfolioApi.addUpdate(entryId, updateContent.trim(), updateSource);
+      setUpdates((prev) => [created, ...prev]);
       setUpdateContent("");
       setShowAddUpdate(false);
-      loadUpdates();
       toast.success("Update added & indexed for AI context");
     } catch {
       toast.error("Failed to add update");
@@ -212,8 +216,8 @@ export default function PortfolioDetailPage() {
           )}
           <div className="text-muted-foreground mt-2 flex flex-wrap gap-4 text-sm">
             {entry.investment_stage && (
-              <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-                {entry.investment_stage}
+              <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium whitespace-nowrap">
+                {titleCase(entry.investment_stage)}
               </span>
             )}
             <span>Check: {fmt$(entry.investment_size)}</span>

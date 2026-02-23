@@ -14,6 +14,7 @@ class TokenResponse(BaseModel):
 class UserOut(BaseModel):
     id: str
     email: str
+    name: str | None = None
     role: str
 
     class Config:

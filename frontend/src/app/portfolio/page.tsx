@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 
@@ -11,6 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { portfolioApi } from "@/lib/api";
 import type { PortfolioSimulationLatest, PortfolioSnapshot } from "@/types";
+
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 function fmt$(n: number | null): string {
   if (n == null) return "—";
@@ -78,26 +82,26 @@ export default function PortfolioPage() {
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     portfolioApi
       .list()
       .then(setRows)
       .catch(() => toast.error("Failed to load portfolio"))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  const loadLatestSim = () => {
+  const loadLatestSim = useCallback(() => {
     portfolioApi.getLatestPortfolioSimulation().then(setLatestSim).catch(() => {});
-  };
-
-  useEffect(() => {
-    load();
   }, []);
 
   useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
     if (rows.length > 0) loadLatestSim();
-  }, [rows.length]);
+  }, [rows.length, loadLatestSim]);
 
   const handleRunPortfolioSim = async () => {
     setSimRunning(true);
@@ -116,10 +120,10 @@ export default function PortfolioPage() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      await portfolioApi.create({ company_name: newName.trim() } as Partial<PortfolioSnapshot>);
+      const created = await portfolioApi.create({ company_name: newName.trim() } as Partial<PortfolioSnapshot>);
+      setRows((prev) => [created, ...prev]);
       setNewName("");
       setShowAdd(false);
-      load();
       toast.success("Company added to portfolio");
     } catch {
       toast.error("Failed to add company");
@@ -132,8 +136,8 @@ export default function PortfolioPage() {
     if (!confirm(`Remove "${name}" from portfolio?`)) return;
     try {
       await portfolioApi.delete(id);
+      setRows((prev) => prev.filter((r) => r.id !== id));
       toast.success(`"${name}" removed`);
-      load();
     } catch {
       toast.error("Failed to remove");
     }
@@ -153,11 +157,11 @@ export default function PortfolioPage() {
     if (!editingId || !editingData) return;
     setSaving(true);
     try {
-      await portfolioApi.update(editingId, editingToPayload(editingData) as Partial<PortfolioSnapshot>);
+      const updated = await portfolioApi.update(editingId, editingToPayload(editingData) as Partial<PortfolioSnapshot>);
+      setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
       toast.success("Updated");
       setEditingId(null);
       setEditingData(null);
-      load();
     } catch {
       toast.error("Failed to save changes");
     } finally {
@@ -457,10 +461,10 @@ export default function PortfolioPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {r.investment_stage ? (
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
-                          {r.investment_stage}
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs whitespace-nowrap">
+                          {titleCase(r.investment_stage)}
                         </span>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>

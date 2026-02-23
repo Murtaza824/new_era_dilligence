@@ -15,6 +15,7 @@ export interface AgentJob {
   entity_label: string | null;
   triggered_by_user_id: string | null;
   triggered_by_user_email: string | null;
+  triggered_by_user_name: string | null;
   duration_seconds: number | null;
 }
 
@@ -23,6 +24,7 @@ export interface AgentJob {
 export interface User {
   id: string;
   email: string;
+  name: string | null;
   role: string;
 }
 
@@ -55,6 +57,7 @@ export interface Company {
   source_type: string | null;
   source_detail: string | null;
   company_linkedin_url: string | null;
+  deal_status: string;
   created_at: string;
   updated_at: string;
   document_count: number;

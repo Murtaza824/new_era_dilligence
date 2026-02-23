@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { ArrowLeft, Briefcase, ExternalLink, Loader2, MapPin, RefreshCw } from "lucide-react";
+import { Archive, ArrowLeft, Ban, Briefcase, ExternalLink, ImagePlus, Loader2, MapPin, Pencil, RefreshCw, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { CompanyLogo } from "@/components/company-logo";
@@ -15,9 +15,15 @@ import { MemoTab } from "@/components/jarvis/memo-tab";
 import { OverviewTab } from "@/components/jarvis/overview-tab";
 import { SimulationTab } from "@/components/jarvis/simulation-tab";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { companies as companiesApi, portfolioApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Company } from "@/types";
+
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  archived: { label: "Archived", className: "bg-muted text-muted-foreground" },
+  passed: { label: "Passed", className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+};
 
 type Tab = "overview" | "deal" | "documents" | "memo" | "simulations";
 
@@ -43,6 +49,9 @@ export default function CompanyDetailPage() {
   const [tab, setTab] = useState<Tab>("overview");
   const [addingToPortfolio, setAddingToPortfolio] = useState(false);
   const [refreshingLogo, setRefreshingLogo] = useState(false);
+  const [editingLogo, setEditingLogo] = useState(false);
+  const [logoUrlInput, setLogoUrlInput] = useState("");
+  const [savingLogo, setSavingLogo] = useState(false);
 
   useEffect(() => {
     if (tabFromUrl && VALID_TABS.includes(tabFromUrl as Tab)) {
@@ -98,17 +107,85 @@ export default function CompanyDetailPage() {
         className="text-muted-foreground hover:text-foreground mb-6 inline-flex items-center gap-1.5 text-sm transition-colors"
       >
         <ArrowLeft className="size-4" />
-        Deal Room
+        Active Deals
       </Link>
 
       {/* Header */}
       <div className="mb-8 flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <CompanyLogo name={company.name} logoUrl={company.logo_url ?? null} size="lg" />
+          <div className="relative group/logo">
+            <CompanyLogo name={company.name} logoUrl={company.logo_url ?? null} size="lg" />
+            <button
+              type="button"
+              onClick={() => { setEditingLogo(true); setLogoUrlInput(company.logo_url ?? ""); }}
+              className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 opacity-0 group-hover/logo:opacity-100 transition-opacity cursor-pointer"
+              title="Edit logo"
+            >
+              <Pencil className="size-4 text-white" />
+            </button>
+          </div>
+          {editingLogo && (
+            <div className="flex flex-col gap-1.5 self-center">
+              <div className="flex items-center gap-1.5">
+                <Input
+                  placeholder="Paste logo URL…"
+                  value={logoUrlInput}
+                  onChange={(e) => setLogoUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (!logoUrlInput.trim()) return;
+                      setSavingLogo(true);
+                      companiesApi
+                        .update(companyId, { logo_url: logoUrlInput.trim() })
+                        .then((updated) => { setCompany(updated); setEditingLogo(false); toast.success("Logo updated"); })
+                        .catch(() => toast.error("Failed to save logo"))
+                        .finally(() => setSavingLogo(false));
+                    }
+                    if (e.key === "Escape") setEditingLogo(false);
+                  }}
+                  className="h-8 w-56 text-xs"
+                  autoFocus
+                />
+                <Button
+                  size="icon-sm"
+                  disabled={savingLogo || !logoUrlInput.trim()}
+                  onClick={() => {
+                    setSavingLogo(true);
+                    companiesApi
+                      .update(companyId, { logo_url: logoUrlInput.trim() })
+                      .then((updated) => { setCompany(updated); setEditingLogo(false); toast.success("Logo updated"); })
+                      .catch(() => toast.error("Failed to save logo"))
+                      .finally(() => setSavingLogo(false));
+                  }}
+                >
+                  {savingLogo ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setEditingLogo(false)}
+                  className="rounded p-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">Paste an image URL and press Enter</p>
+            </div>
+          )}
           <div>
-            <h1 className="font-display text-3xl font-semibold tracking-tight">
-              {company.name}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="font-display text-3xl font-semibold tracking-tight">
+                {company.name}
+              </h1>
+              {company.deal_status && company.deal_status !== "active" && STATUS_BADGE[company.deal_status] && (
+                <span className={cn(
+                  "rounded-full px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide",
+                  STATUS_BADGE[company.deal_status].className,
+                )}>
+                  {STATUS_BADGE[company.deal_status].label}
+                </span>
+              )}
+            </div>
             {company.one_liner && (
               <p className="text-muted-foreground mt-1 text-sm italic">{company.one_liner}</p>
             )}
@@ -118,7 +195,7 @@ export default function CompanyDetailPage() {
               {(company.investment_stage || company.entry_valuation != null || company.amount_raising != null) && (
                 <>
                   {" · "}
-                  {[company.investment_stage, company.entry_valuation != null && `$${(company.entry_valuation / 1e6).toFixed(1)}M val`, company.amount_raising != null && `$${(company.amount_raising / 1e6).toFixed(1)}M raising`].filter(Boolean).join(" · ")}
+                  {[company.investment_stage && company.investment_stage.replace(/\b\w/g, (c: string) => c.toUpperCase()), company.entry_valuation != null && `$${(company.entry_valuation / 1e6).toFixed(1)}M val`, company.amount_raising != null && `$${(company.amount_raising / 1e6).toFixed(1)}M raising`].filter(Boolean).join(" · ")}
                 </>
               )}
             </p>
@@ -138,6 +215,54 @@ export default function CompanyDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {(!company.deal_status || company.deal_status === "active") && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const updated = await companiesApi.updateStatus(companyId, "archived");
+                    setCompany(updated);
+                    toast.success("Deal archived — materials saved");
+                  } catch { toast.error("Failed to archive"); }
+                }}
+              >
+                <Archive className="mr-1.5 size-4" />
+                Archive
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const updated = await companiesApi.updateStatus(companyId, "passed");
+                    setCompany(updated);
+                    toast.success("Marked as passed — materials saved");
+                  } catch { toast.error("Failed to update"); }
+                }}
+              >
+                <Ban className="mr-1.5 size-4" />
+                Pass
+              </Button>
+            </>
+          )}
+          {company.deal_status && company.deal_status !== "active" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const updated = await companiesApi.updateStatus(companyId, "active");
+                  setCompany(updated);
+                  toast.success("Deal reactivated");
+                } catch { toast.error("Failed to reactivate"); }
+              }}
+            >
+              <RotateCcw className="mr-1.5 size-4" />
+              Reactivate
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

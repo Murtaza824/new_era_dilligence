@@ -1,4 +1,4 @@
-"""Dealflow CRM: top-of-funnel entries, founders, documents, promote to Deal Room."""
+"""Dealflow CRM: top-of-funnel entries, founders, documents, promote to Active Deals."""
 import os
 import tempfile
 import logging
@@ -405,7 +405,7 @@ def delete_document(
     return {"ok": True}
 
 
-# ——— Promote to Deal Room ———
+# ——— Promote to Active Deals ———
 
 @router.post("/entries/{entry_id}/promote-to-deal-room", response_model=PromoteToDealRoomOut)
 def promote_to_deal_room(
@@ -420,7 +420,7 @@ def promote_to_deal_room(
     if existing:
         raise HTTPException(
             status_code=409,
-            detail=f"Already promoted to Deal Room (company id: {existing.id})",
+            detail=f"Already promoted to Active Deals (company id: {existing.id})",
         )
     company = Company(
         name=entry.name,
@@ -478,7 +478,7 @@ def promote_to_deal_room(
                 entity_type="company",
                 entity_id=company.id,
                 status="pending",
-                message="Auto-triggered on promote to Deal Room",
+                message="Auto-triggered on promote to Active Deals",
             )
             db.add(job)
             db.commit()
