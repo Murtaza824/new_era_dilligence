@@ -378,6 +378,17 @@ def _migrate_user_name():
         conn.commit()
 
 
+def _migrate_portfolio_deal_status():
+    """Set deal_status='portfolio' for companies that are already in the portfolio table."""
+    with engine.connect() as conn:
+        conn.execute(text(
+            "UPDATE companies SET deal_status = 'portfolio' "
+            "WHERE id IN (SELECT company_id FROM portfolio_snapshots WHERE company_id IS NOT NULL) "
+            "AND deal_status != 'portfolio'"
+        ))
+        conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
@@ -396,3 +407,4 @@ def init_db():
     _migrate_news_item_analysis_fields()
     _migrate_company_deal_status()
     _migrate_user_name()
+    _migrate_portfolio_deal_status()

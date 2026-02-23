@@ -297,6 +297,7 @@ export default function CompanyDetailPage() {
             setAddingToPortfolio(true);
             try {
               await portfolioApi.addFromCompany(companyId);
+              setCompany((prev) => prev ? { ...prev, deal_status: "portfolio" } : prev);
               toast.success(`${company.name} added to portfolio`);
             } catch (e: unknown) {
               const msg = e instanceof Error ? e.message : "Failed to add to portfolio";

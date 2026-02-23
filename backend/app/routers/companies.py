@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.models.company import Company
+from app.models.dealflow_entry import DealflowEntry
 from app.models.document import Document
 from app.models.memo import Memo
 from app.models.simulation import SimulationRun
@@ -56,6 +57,8 @@ def list_companies(
     q = db.query(Company)
     if status:
         q = q.filter(Company.deal_status == status)
+    else:
+        q = q.filter(Company.deal_status != "portfolio")
     companies = q.order_by(Company.created_at.desc()).all()
     return [_enrich(c, db) for c in companies]
 
@@ -101,6 +104,14 @@ def update_deal_status(
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     company.deal_status = status
+    # Sync status back to the linked dealflow entry
+    if company.dealflow_entry_id:
+        df_entry = db.query(DealflowEntry).filter(
+            DealflowEntry.id == company.dealflow_entry_id
+        ).first()
+        if df_entry:
+            status_map = {"active": "in_diligence", "passed": "passed", "archived": "passed"}
+            df_entry.status = status_map.get(status, df_entry.status)
     db.commit()
     db.refresh(company)
     return _enrich(company, db)
@@ -152,6 +163,14 @@ def add_to_portfolio(company_id: str, db: Session = Depends(get_db)):
         ownership_pct=ownership_pct,
     )
     db.add(snap)
+    # Move out of Active Deals and sync dealflow status
+    company.deal_status = "portfolio"
+    if company.dealflow_entry_id:
+        df_entry = db.query(DealflowEntry).filter(
+            DealflowEntry.id == company.dealflow_entry_id
+        ).first()
+        if df_entry:
+            df_entry.status = "invested"
     db.commit()
     db.refresh(snap)
     try:
