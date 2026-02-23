@@ -764,6 +764,7 @@ export default function DealflowPage() {
                         onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "status" })}
                       >
                         {titleCase(e.status)}
+                      </span>
                     )}
                   </td>
                   <td className="text-muted-foreground p-3 text-sm">
