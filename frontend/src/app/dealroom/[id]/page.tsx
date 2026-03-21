@@ -9,12 +9,12 @@ import { ArrowLeft, Ban, Briefcase, ExternalLink, ImagePlus, Loader2, MapPin, Pe
 import { toast } from "sonner";
 
 import { CompanyLogo } from "@/components/company-logo";
-import { TouchpointsSection } from "@/components/touchpoints-section";
 import { DealTermsTab } from "@/components/jarvis/deal-terms-tab";
 import { DocumentsTab } from "@/components/jarvis/documents-tab";
 import { MemoTab } from "@/components/jarvis/memo-tab";
 import { OverviewTab } from "@/components/jarvis/overview-tab";
 import { SimulationTab } from "@/components/jarvis/simulation-tab";
+import { TouchpointsSection } from "@/components/touchpoints-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { companies as companiesApi, portfolioApi } from "@/lib/api";

@@ -8,11 +8,11 @@ import { useRouter } from "next/navigation";
 import { Globe, LayoutList, Linkedin, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
+import { CompanyLogo } from "@/components/company-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { dealflowApi, locationsApi, trackedPersonsApi, type DealflowEntryCreateBody, type LocationItem, type TrackedPersonCreateBody } from "@/lib/api";
-import { CompanyLogo } from "@/components/company-logo";
 import { cn } from "@/lib/utils";
 import type { DealflowEntry, TrackedPerson } from "@/types";
 
@@ -432,8 +432,9 @@ export default function DealflowPage() {
         <div className="mb-8 rounded-xl border bg-card p-4 shadow-sm space-y-4">
           <h3 className="font-medium">New dealflow entry</h3>
           <div className="space-y-1">
-            <label className="text-muted-foreground text-xs font-medium">Paste call/meeting notes (optional)</label>
+            <label htmlFor="import-notes-textarea" className="text-muted-foreground text-xs font-medium">Paste call/meeting notes (optional)</label>
             <textarea
+              id="import-notes-textarea"
               placeholder="Paste your Granola or meeting notes here and we'll auto-extract the company info…"
               value={importNotesText}
               onChange={(e) => setImportNotesText(e.target.value)}

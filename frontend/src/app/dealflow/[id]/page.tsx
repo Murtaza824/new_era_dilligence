@@ -8,9 +8,9 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Briefcase, FileText, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import { CompanyLogo } from "@/components/company-logo";
 import { TouchpointsSection } from "@/components/touchpoints-section";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
