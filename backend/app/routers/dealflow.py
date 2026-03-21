@@ -67,6 +67,7 @@ def _entry_to_out(entry: DealflowEntry, db: Session) -> DealflowEntryOut:
         notes=entry.notes,
         source_type=entry.source_type,
         source_detail=entry.source_detail,
+        logo_url=entry.logo_url,
         status=entry.status,
         added_by_user_id=entry.added_by_user_id,
         created_at=entry.created_at,
@@ -102,6 +103,18 @@ def _run_matchmaking_background(entry_id: str, trigger: str) -> None:
         db.close()
 
 
+def _run_enrichment_background(entry_id: str) -> None:
+    """Run auto-enrichment in a background task with its own DB session."""
+    db = SessionLocal()
+    try:
+        from app.services.enrichment import enrich_dealflow_entry
+        enrich_dealflow_entry(entry_id, db)
+    except Exception as exc:
+        logger.warning("Background enrichment failed for %s: %s", entry_id, exc)
+    finally:
+        db.close()
+
+
 @router.post("/entries", response_model=DealflowEntryOut)
 def create_entry(
     body: DealflowEntryCreate,
@@ -121,7 +134,8 @@ def create_entry(
         notes=body.notes,
         source_type=body.source_type,
         source_detail=body.source_detail,
-        status=body.status or "none",
+        logo_url=body.logo_url,
+        status=body.status or "lead",
         added_by_user_id=current_user.id,
     )
     db.add(entry)
@@ -129,7 +143,7 @@ def create_entry(
     db.refresh(entry)
     if body.founders:
         _set_founders(entry.id, body.founders, db)
-    background_tasks.add_task(_run_matchmaking_background, entry.id, "dealflow_entry_created")
+    background_tasks.add_task(_run_enrichment_background, entry.id)
     return _entry_to_out(entry, db)
 
 
@@ -225,7 +239,7 @@ def create_entry_from_notes(
         notes=full_notes,
         source_type="call_notes",
         source_detail=body.url or None,
-        status="none",
+        status="lead",
         added_by_user_id=current_user.id,
     )
     db.add(entry)
@@ -246,7 +260,23 @@ def create_entry_from_notes(
         if founder_creates:
             _set_founders(entry.id, founder_creates, db)
 
-    background_tasks.add_task(_run_matchmaking_background, entry.id, "dealflow_entry_created")
+    # Auto-create the first touchpoint from the imported notes
+    from app.models.touchpoint import Touchpoint
+    from datetime import datetime, timezone
+    tp = Touchpoint(
+        dealflow_entry_id=entry.id,
+        type="call",
+        source="granola" if body.url else "manual",
+        title=f"Initial notes — {name}",
+        content=notes_text,
+        summary=summary if isinstance(summary, str) and summary else None,
+        external_link=body.url or None,
+        occurred_at=datetime.now(timezone.utc),
+    )
+    db.add(tp)
+    db.commit()
+
+    background_tasks.add_task(_run_enrichment_background, entry.id)
     return _entry_to_out(entry, db)
 
 
@@ -256,6 +286,7 @@ def list_entries(
     status: Optional[str] = Query(None),
     source_type: Optional[str] = Query(None),
     stage: Optional[str] = Query(None),
+    location: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     query = db.query(DealflowEntry).order_by(DealflowEntry.created_at.desc())
@@ -281,6 +312,8 @@ def list_entries(
         query = query.filter(DealflowEntry.source_type == source_type.strip())
     if stage is not None and stage.strip():
         query = query.filter(DealflowEntry.stage == stage.strip())
+    if location is not None and location.strip():
+        query = query.filter(DealflowEntry.location == location.strip())
     entries = query.all()
     return [_entry_to_out(e, db) for e in entries]
 
@@ -323,6 +356,27 @@ def delete_entry(entry_id: str, db: Session = Depends(get_db)):
     db.delete(entry)
     db.commit()
     return {"ok": True}
+
+
+# ——— Logo upload ———
+
+@router.post("/entries/{entry_id}/logo", response_model=DealflowEntryOut)
+def upload_entry_logo(
+    entry_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    import base64
+    entry = db.query(DealflowEntry).filter(DealflowEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Dealflow entry not found")
+    content = file.file.read()
+    media_type = file.content_type or "image/png"
+    data_url = f"data:{media_type};base64,{base64.b64encode(content).decode()}"
+    entry.logo_url = data_url
+    db.commit()
+    db.refresh(entry)
+    return _entry_to_out(entry, db)
 
 
 # ——— Founders sub-resource (optional: also manageable via PATCH entry with founders) ———

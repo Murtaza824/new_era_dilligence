@@ -482,6 +482,96 @@ export const newsApi = {
     request<void>(`/news/${id}`, { method: "DELETE" }),
 };
 
+// ── Gmail integration ─────────────────────────────────────────────────────
+
+export interface EmailAccountItem {
+  id: string;
+  email: string;
+  provider: string;
+  last_sync_at: string | null;
+}
+
+export const gmailApi = {
+  getAuthUrl: () => request<{ url: string }>("/integrations/gmail/auth-url"),
+  callback: (code: string) =>
+    request<EmailAccountItem>("/integrations/gmail/callback", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  listAccounts: () => request<EmailAccountItem[]>("/integrations/gmail/accounts"),
+  disconnect: (id: string) =>
+    request<{ ok: boolean }>(`/integrations/gmail/accounts/${id}`, { method: "DELETE" }),
+  sync: () =>
+    request<{ ok: boolean; message: string }>("/integrations/gmail/sync", { method: "POST" }),
+};
+
+// ── Touchpoints ───────────────────────────────────────────────────────────
+
+export interface Touchpoint {
+  id: string;
+  dealflow_entry_id: string | null;
+  company_id: string | null;
+  type: string;
+  source: string | null;
+  title: string | null;
+  summary: string | null;
+  content: string | null;
+  external_link: string | null;
+  occurred_at: string;
+  created_at: string;
+}
+
+export interface TouchpointCreateBody {
+  dealflow_entry_id?: string;
+  company_id?: string;
+  type?: string;
+  source?: string;
+  title?: string;
+  content?: string;
+  external_link?: string;
+  occurred_at?: string;
+}
+
+export const touchpointsApi = {
+  list: (params: { dealflow_entry_id?: string; company_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params.dealflow_entry_id) sp.set("dealflow_entry_id", params.dealflow_entry_id);
+    if (params.company_id) sp.set("company_id", params.company_id);
+    const query = sp.toString();
+    return request<Touchpoint[]>(`/touchpoints${query ? `?${query}` : ""}`);
+  },
+  create: (body: TouchpointCreateBody) =>
+    request<Touchpoint>("/touchpoints", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  update: (id: string, body: Partial<TouchpointCreateBody>) =>
+    request<Touchpoint>(`/touchpoints/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  delete: (id: string) =>
+    request<{ ok: boolean }>(`/touchpoints/${id}`, { method: "DELETE" }),
+};
+
+// ── Locations ─────────────────────────────────────────────────────────────
+
+export interface LocationItem {
+  id: string;
+  name: string;
+}
+
+export const locationsApi = {
+  list: () => request<LocationItem[]>("/locations"),
+  create: (name: string) =>
+    request<LocationItem>("/locations", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  delete: (id: string) =>
+    request<{ ok: boolean }>(`/locations/${id}`, { method: "DELETE" }),
+};
+
 // ── Dealflow ──────────────────────────────────────────────────────────────
 
 export type DealflowEntryCreateBody = {
@@ -504,12 +594,13 @@ export type DealflowEntryUpdateBody = Partial<DealflowEntryCreateBody>;
 
 export const dealflowApi = {
   entries: {
-    list: (params?: { q?: string; status?: string; source_type?: string; stage?: string }) => {
+    list: (params?: { q?: string; status?: string; source_type?: string; stage?: string; location?: string }) => {
       const sp = new URLSearchParams();
       if (params?.q) sp.set("q", params.q);
       if (params?.status) sp.set("status", params.status);
       if (params?.source_type) sp.set("source_type", params.source_type);
       if (params?.stage) sp.set("stage", params.stage);
+      if (params?.location) sp.set("location", params.location);
       const query = sp.toString();
       return request<DealflowEntry[]>(`/dealflow/entries${query ? `?${query}` : ""}`);
     },
@@ -531,6 +622,23 @@ export const dealflowApi = {
       }),
     delete: (id: string) =>
       request<{ ok: boolean }>(`/dealflow/entries/${id}`, { method: "DELETE" }),
+    uploadLogo: async (entryId: string, file: File): Promise<DealflowEntry> => {
+      const form = new FormData();
+      form.append("file", file);
+      const token = getToken();
+      const headers: HeadersInit = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`${BASE}/dealflow/entries/${entryId}/logo`, {
+        method: "POST",
+        headers,
+        body: form,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail ?? `Upload failed ${res.status}`);
+      }
+      return res.json();
+    },
     addFounder: (entryId: string, body: { name: string; linkedin_url?: string; twitter_url?: string; email?: string }) =>
       request<DealflowFounder>(`/dealflow/entries/${entryId}/founders`, {
         method: "POST",

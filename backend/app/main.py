@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from app.auth import hash_password
 from app.database import SessionLocal, init_db
 from app.models import AgentJob, ContactIntroductionSuggestion, NetworkContact, User  # import so create_all creates tables
-from app.routers import activity, agent_chat, auth, companies, dealflow, documents, memos, network, news, portfolio, simulations, tracked_persons
+from app.routers import activity, agent_chat, auth, companies, dealflow, documents, integrations, locations, memos, network, news, portfolio, simulations, touchpoints, tracked_persons
 
 logger = logging.getLogger("jarvis")
 
@@ -83,6 +83,9 @@ app.include_router(news.router)
 app.include_router(portfolio.router)
 app.include_router(simulations.router)
 app.include_router(tracked_persons.router)
+app.include_router(locations.router)
+app.include_router(touchpoints.router)
+app.include_router(integrations.router)
 
 
 @app.exception_handler(Exception)
@@ -97,3 +100,26 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/admin/backup-status")
+def backup_status():
+    """Report the latest successful backup timestamp from S3."""
+    import os
+    bucket = os.getenv("BACKUP_S3_BUCKET")
+    prefix = os.getenv("BACKUP_S3_PREFIX", "jarvis-backups")
+    if not bucket:
+        return {"status": "not_configured", "message": "BACKUP_S3_BUCKET not set"}
+    try:
+        import boto3
+        s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        obj = s3.get_object(Bucket=bucket, Key=f"{prefix}/latest.txt")
+        content = obj["Body"].read().decode().strip().split("\n")
+        return {
+            "status": "ok",
+            "last_backup_timestamp": content[0] if content else None,
+            "last_backup_key": content[1] if len(content) > 1 else None,
+            "last_backup_size": content[2] if len(content) > 2 else None,
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

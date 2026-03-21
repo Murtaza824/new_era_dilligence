@@ -360,6 +360,7 @@ export interface DealflowEntry {
   notes: string | null;
   source_type: string | null;
   source_detail: string | null;
+  logo_url: string | null;
   status: string;
   added_by_user_id: string | null;
   created_at: string;

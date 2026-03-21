@@ -19,6 +19,7 @@ class DealflowEntry(Base):
     notes = Column(Text, nullable=True)
     source_type = Column(String, nullable=True)
     source_detail = Column(String, nullable=True)
+    logo_url = Column(String, nullable=True)
     status = Column(String, nullable=False, default="none")
     added_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

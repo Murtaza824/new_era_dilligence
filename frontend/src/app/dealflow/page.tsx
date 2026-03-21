@@ -1,19 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
-import { ArrowRight, ExternalLink, FileText, Globe, LayoutList, Linkedin, Loader2, Plus, Search, Trash2, UserPlus } from "lucide-react";
+import { Globe, LayoutList, Linkedin, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
-import { dealflowApi, trackedPersonsApi, type DealflowEntryCreateBody, type DealflowEntryUpdateBody, type TrackedPersonCreateBody } from "@/lib/api";
+import { dealflowApi, locationsApi, trackedPersonsApi, type DealflowEntryCreateBody, type LocationItem, type TrackedPersonCreateBody } from "@/lib/api";
+import { CompanyLogo } from "@/components/company-logo";
 import { cn } from "@/lib/utils";
 import type { DealflowEntry, TrackedPerson } from "@/types";
 
@@ -21,9 +20,19 @@ function titleCase(s: string): string {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function displayStatus(status: string): string {
+  if (status === "none") return "Lead";
+  return titleCase(status);
+}
+
+function statusKey(status: string): string {
+  return status === "none" ? "lead" : status;
+}
+
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
-  { value: "none", label: "None" },
+  { value: "lead", label: "Lead" },
+  { value: "active", label: "Active" },
   { value: "reached_out", label: "Reached out" },
   { value: "in_diligence", label: "In diligence" },
   { value: "passed", label: "Passed" },
@@ -31,7 +40,9 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_COLORS: Record<string, string> = {
+  lead: "bg-muted text-muted-foreground",
   none: "bg-muted text-muted-foreground",
+  active: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
   reached_out: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   in_diligence: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   passed: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
@@ -40,13 +51,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 const SOURCE_OPTIONS = [
   { value: "", label: "All sources" },
-  { value: "murtaza", label: "Murtaza" },
-  { value: "carter", label: "Carter" },
-  { value: "friend", label: "Friend" },
-  { value: "twitter", label: "Twitter" },
-  { value: "newsletter", label: "Newsletter" },
-  { value: "event", label: "Event" },
-  { value: "other", label: "Other" },
+  { value: "venture_partner", label: "Venture Partner" },
+  { value: "investor_intro", label: "Investor Intro" },
+  { value: "lp_intro", label: "LP Intro" },
+  { value: "self_sourced", label: "Self Sourced" },
 ];
 
 const STAGE_OPTIONS = [
@@ -65,6 +73,105 @@ function formatCurrency(n: number | null | undefined): string {
   return `$${n}`;
 }
 
+function LocationFilter({
+  locations,
+  value,
+  onChange,
+  onAdd,
+}: {
+  locations: LocationItem[];
+  value: string;
+  onChange: (v: string) => void;
+  onAdd: (name: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [newLoc, setNewLoc] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = newLoc.trim()
+    ? locations.filter((l) => l.name.toLowerCase().includes(newLoc.toLowerCase()))
+    : locations;
+  const exactMatch = locations.some((l) => l.name.toLowerCase() === newLoc.trim().toLowerCase());
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="rounded-md border bg-background px-3 py-2 text-sm min-w-[140px] text-left"
+      >
+        {value || "All locations"}
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-56 rounded-md border bg-card shadow-lg">
+          <div className="p-2">
+            <input
+              type="text"
+              placeholder="Search or add…"
+              value={newLoc}
+              onChange={(e) => setNewLoc(e.target.value)}
+              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              onKeyDown={async (e) => {
+                if (e.key === "Enter" && newLoc.trim() && !exactMatch) {
+                  await onAdd(newLoc.trim());
+                  setNewLoc("");
+                  setOpen(false);
+                }
+              }}
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => { onChange(""); setOpen(false); setNewLoc(""); }}
+              className={cn(
+                "w-full px-3 py-1.5 text-left text-sm hover:bg-muted",
+                !value && "font-medium text-foreground",
+              )}
+            >
+              All locations
+            </button>
+            {filtered.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => { onChange(l.name); setOpen(false); setNewLoc(""); }}
+                className={cn(
+                  "w-full px-3 py-1.5 text-left text-sm hover:bg-muted",
+                  value === l.name && "font-medium text-foreground",
+                )}
+              >
+                {l.name}
+              </button>
+            ))}
+            {newLoc.trim() && !exactMatch && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await onAdd(newLoc.trim());
+                  setNewLoc("");
+                  setOpen(false);
+                }}
+                className="w-full px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
+              >
+                + Add &quot;{newLoc.trim()}&quot;
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type SubTab = "companies" | "people";
 
 export default function DealflowPage() {
@@ -78,12 +185,10 @@ export default function DealflowPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [locations, setLocations] = useState<LocationItem[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<{ id: string; field: string } | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [promotingId, setPromotingId] = useState<string | null>(null);
-  const [promoteTarget, setPromoteTarget] = useState<DealflowEntry | null>(null);
   const router = useRouter();
 
   // People tracker state
@@ -111,13 +216,10 @@ export default function DealflowPage() {
   const [newNotes, setNewNotes] = useState("");
   const [newSourceType, setNewSourceType] = useState("");
   const [newSourceDetail, setNewSourceDetail] = useState("");
-  const [newStatus, setNewStatus] = useState("none");
+  const [newStatus, setNewStatus] = useState("lead");
 
-  // Import notes modal state
-  const [showImportNotes, setShowImportNotes] = useState(false);
   const [importNotesText, setImportNotesText] = useState("");
   const [importNotesUrl, setImportNotesUrl] = useState("");
-  const [importing, setImporting] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -127,15 +229,18 @@ export default function DealflowPage() {
         ...(statusFilter && { status: statusFilter }),
         ...(sourceFilter && { source_type: sourceFilter }),
         ...(stageFilter && { stage: stageFilter }),
+        ...(locationFilter && { location: locationFilter }),
       })
       .then(setList)
       .catch(() => toast.error("Failed to load dealflow"))
       .finally(() => setLoading(false));
-  }, [search, statusFilter, sourceFilter, stageFilter]);
+  }, [search, statusFilter, sourceFilter, stageFilter, locationFilter]);
 
   useEffect(() => {
-    if (!authLoading && user) load();
-    else if (!authLoading && !user) setLoading(false);
+    if (!authLoading && user) {
+      load();
+      locationsApi.list().then(setLocations).catch(() => {});
+    } else if (!authLoading && !user) setLoading(false);
   }, [authLoading, user, load]);
 
   const loadPeople = useCallback(() => {
@@ -223,24 +328,33 @@ export default function DealflowPage() {
     editingPerson?.id === id && editingPerson?.field === field;
 
   const handleCreate = async () => {
-    if (!newName.trim()) return;
+    const hasNotes = importNotesText.trim() || importNotesUrl.trim();
+    if (!hasNotes && !newName.trim()) return;
     setCreating(true);
     try {
-      const body: DealflowEntryCreateBody = {
-        name: newName.trim(),
-        status: newStatus || "none",
-        ...(newWebsite.trim() && { website: newWebsite.trim() }),
-        ...(newCompanyLinkedIn.trim() && { company_linkedin_url: newCompanyLinkedIn.trim() }),
-        ...(newOneLiner.trim() && { one_liner: newOneLiner.trim() }),
-        ...(newLocation.trim() && { location: newLocation.trim() }),
-        ...(newStage && { stage: newStage }),
-        ...(newAmountRaising.trim() && { amount_raising: parseFloat(newAmountRaising) || undefined }),
-        ...(newValuation.trim() && { valuation: parseFloat(newValuation) || undefined }),
-        ...(newNotes.trim() && { notes: newNotes.trim() }),
-        ...(newSourceType && { source_type: newSourceType }),
-        ...(newSourceDetail.trim() && { source_detail: newSourceDetail.trim() }),
-      };
-      const created = await dealflowApi.entries.create(body);
+      let created;
+      if (hasNotes) {
+        created = await dealflowApi.entries.createFromNotes({
+          ...(importNotesText.trim() && { text: importNotesText.trim() }),
+          ...(importNotesUrl.trim() && { url: importNotesUrl.trim() }),
+        });
+      } else {
+        const body: DealflowEntryCreateBody = {
+          name: newName.trim(),
+          status: newStatus || "lead",
+          ...(newWebsite.trim() && { website: newWebsite.trim() }),
+          ...(newCompanyLinkedIn.trim() && { company_linkedin_url: newCompanyLinkedIn.trim() }),
+          ...(newOneLiner.trim() && { one_liner: newOneLiner.trim() }),
+          ...(newLocation.trim() && { location: newLocation.trim() }),
+          ...(newStage && { stage: newStage }),
+          ...(newAmountRaising.trim() && { amount_raising: parseFloat(newAmountRaising) || undefined }),
+          ...(newValuation.trim() && { valuation: parseFloat(newValuation) || undefined }),
+          ...(newNotes.trim() && { notes: newNotes.trim() }),
+          ...(newSourceType && { source_type: newSourceType }),
+          ...(newSourceDetail.trim() && { source_detail: newSourceDetail.trim() }),
+        };
+        created = await dealflowApi.entries.create(body);
+      }
       setList((prev) => [created, ...prev]);
       setNewName("");
       setNewWebsite("");
@@ -253,9 +367,11 @@ export default function DealflowPage() {
       setNewNotes("");
       setNewSourceType("");
       setNewSourceDetail("");
-      setNewStatus("none");
+      setNewStatus("lead");
+      setImportNotesText("");
+      setImportNotesUrl("");
       setShowForm(false);
-      toast.success("Company added to dealflow");
+      toast.success(hasNotes ? `"${created.name}" added from notes` : "Company added to dealflow");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to add company";
       toast.error(message);
@@ -263,86 +379,6 @@ export default function DealflowPage() {
       setCreating(false);
     }
   };
-
-  const handleDelete = async (entry: DealflowEntry) => {
-    if (!confirm(`Delete "${entry.name}" from dealflow? This cannot be undone.`)) return;
-    try {
-      await dealflowApi.entries.delete(entry.id);
-      setList((prev) => prev.filter((x) => x.id !== entry.id));
-      toast.success(`"${entry.name}" removed`);
-    } catch {
-      toast.error("Failed to delete");
-    }
-  };
-
-  const handlePromoteToDealRoom = (entry: DealflowEntry) => {
-    if (entry.promoted_company_id && entry.promoted_company_deal_status === "active") {
-      router.push(`/dealroom/${entry.promoted_company_id}`);
-      return;
-    }
-    setPromoteTarget(entry);
-  };
-
-  const confirmPromote = async () => {
-    if (!promoteTarget) return;
-    setPromotingId(promoteTarget.id);
-    try {
-      const { company_id } = await dealflowApi.entries.promoteToDealRoom(promoteTarget.id, true);
-      toast.success("Promoted to Active Deals");
-      setPromoteTarget(null);
-      router.push(`/dealroom/${company_id}`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to promote";
-      toast.error(message);
-      setPromotingId(null);
-    }
-  };
-
-  const handleImportNotes = async () => {
-    if (!importNotesText.trim() && !importNotesUrl.trim()) return;
-    setImporting(true);
-    try {
-      const created = await dealflowApi.entries.createFromNotes({
-        ...(importNotesText.trim() && { text: importNotesText.trim() }),
-        ...(importNotesUrl.trim() && { url: importNotesUrl.trim() }),
-      });
-      setList((prev) => [created, ...prev]);
-      setShowImportNotes(false);
-      setImportNotesText("");
-      setImportNotesUrl("");
-      toast.success(`"${created.name}" added from call notes`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to extract deal from notes";
-      toast.error(message);
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleInlineSave = async (
-    entryId: string,
-    field: string,
-    value: string | number | null | undefined
-  ) => {
-    setEditing(null);
-    const entry = list.find((e) => e.id === entryId);
-    if (!entry) return;
-    const payload: Record<string, unknown> = { [field]: value ?? null };
-    if (field === "amount_raising" || field === "valuation") {
-      payload[field] = value === "" || value === undefined ? undefined : Number(value);
-    }
-    setSaving(true);
-    try {
-      const updated = await dealflowApi.entries.update(entryId, payload as DealflowEntryUpdateBody);
-      setList((prev) => prev.map((e) => (e.id === entryId ? updated : e)));
-    } catch {
-      toast.error("Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const isEditing = (id: string, field: string) => editing?.id === id && editing?.field === field;
 
   return (
     <div className="container mx-auto max-w-6xl px-6 pt-10 pb-20">
@@ -354,16 +390,10 @@ export default function DealflowPage() {
           </p>
         </div>
         {subTab === "companies" ? (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowImportNotes(true)}>
-              <FileText className="mr-1.5 size-4" />
-              Import notes
-            </Button>
-            <Button onClick={() => setShowForm(!showForm)} size="sm">
-              <Plus className="mr-1.5 size-4" />
-              Add company
-            </Button>
-          </div>
+          <Button onClick={() => setShowForm(!showForm)} size="sm">
+            <Plus className="mr-1.5 size-4" />
+            Add company
+          </Button>
         ) : (
           <Button onClick={() => setShowPersonForm(!showPersonForm)} size="sm">
             <Plus className="mr-1.5 size-4" />
@@ -401,9 +431,27 @@ export default function DealflowPage() {
       {subTab === "companies" && showForm && (
         <div className="mb-8 rounded-xl border bg-card p-4 shadow-sm space-y-4">
           <h3 className="font-medium">New dealflow entry</h3>
+          <div className="space-y-1">
+            <label className="text-muted-foreground text-xs font-medium">Paste call/meeting notes (optional)</label>
+            <textarea
+              placeholder="Paste your Granola or meeting notes here and we'll auto-extract the company info…"
+              value={importNotesText}
+              onChange={(e) => setImportNotesText(e.target.value)}
+              rows={4}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+            />
+            <Input
+              placeholder="Or paste a Granola link (optional)"
+              value={importNotesUrl}
+              onChange={(e) => setImportNotesUrl(e.target.value)}
+            />
+          </div>
+          {(importNotesText.trim() || importNotesUrl.trim()) && (
+            <p className="text-xs text-primary">Notes detected — fields below will be auto-populated on submit.</p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Input
-              placeholder="Company name *"
+              placeholder={importNotesText.trim() || importNotesUrl.trim() ? "Company name (auto-filled from notes)" : "Company name *"}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               className="sm:col-span-2"
@@ -435,6 +483,7 @@ export default function DealflowPage() {
               onChange={(e) => setNewStage(e.target.value)}
               className="rounded-md border bg-background px-3 py-2 text-sm"
             >
+              <option value="" disabled>Stage…</option>
               {STAGE_OPTIONS.filter((o) => o.value).map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
@@ -456,6 +505,7 @@ export default function DealflowPage() {
               onChange={(e) => setNewSourceType(e.target.value)}
               className="rounded-md border bg-background px-3 py-2 text-sm"
             >
+              <option value="" disabled>Source…</option>
               {SOURCE_OPTIONS.filter((o) => o.value).map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
@@ -484,8 +534,12 @@ export default function DealflowPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleCreate} disabled={creating || !newName.trim()} size="sm">
-              {creating ? "Adding…" : "Add"}
+            <Button
+              onClick={handleCreate}
+              disabled={creating || (!newName.trim() && !importNotesText.trim() && !importNotesUrl.trim())}
+              size="sm"
+            >
+              {creating ? (importNotesText.trim() || importNotesUrl.trim() ? "Extracting…" : "Adding…") : "Add"}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setShowForm(false)}>
               Cancel
@@ -494,9 +548,6 @@ export default function DealflowPage() {
         </div>
       )}
 
-      {subTab === "companies" && saving && (
-        <p className="text-muted-foreground text-sm mb-2">Saving…</p>
-      )}
       {subTab === "companies" && (<>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -535,6 +586,16 @@ export default function DealflowPage() {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
+        <LocationFilter
+          locations={locations}
+          value={locationFilter}
+          onChange={setLocationFilter}
+          onAdd={async (name) => {
+            const loc = await locationsApi.create(name);
+            setLocations((prev) => [...prev, loc].sort((a, b) => a.name.localeCompare(b.name)));
+            setLocationFilter(loc.name);
+          }}
+        />
       </div>
 
       {loading && (
@@ -573,38 +634,26 @@ export default function DealflowPage() {
             <tbody>
               {list.map((e) => (
                 <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="p-2">
+                  <td className="p-2 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      {isEditing(e.id, "name") ? (
-                        <Input
-                          className="h-8 w-full min-w-[120px]"
-                          defaultValue={e.name}
-                          onBlur={(ev) => handleInlineSave(e.id, "name", ev.target.value.trim() || e.name)}
-                          onKeyDown={(ev) => {
-                            if (ev.key === "Enter") {
-                              ev.currentTarget.blur();
-                            }
-                            if (ev.key === "Escape") setEditing(null);
-                          }}
-                        />
-                      ) : (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className="font-medium text-foreground cursor-text hover:bg-muted/50 rounded px-1 -mx-1"
-                          onClick={() => setEditing({ id: e.id, field: "name" })}
-                          onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "name" })}
-                        >
-                          {e.name}
-                        </span>
-                      )}
+                      <CompanyLogo name={e.name} logoUrl={e.logo_url} size="sm" />
                       <Link
                         href={`/dealflow/${e.id}`}
-                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        title="Open full entry"
+                        className="font-medium text-foreground hover:underline"
                       >
-                        <ExternalLink className="size-3.5" />
+                        {e.name}
                       </Link>
+                      {e.website && (
+                        <a
+                          href={e.website.startsWith("http") ? e.website : `https://${e.website}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          title={e.website}
+                        >
+                          <Globe className="size-3.5" />
+                        </a>
+                      )}
                       {e.promoted_company_id && e.promoted_company_deal_status === "active" && (
                         <Link
                           href={`/dealroom/${e.promoted_company_id}`}
@@ -616,229 +665,47 @@ export default function DealflowPage() {
                     </div>
                   </td>
                   <td className="p-2 max-w-[200px]">
-                    {isEditing(e.id, "one_liner") ? (
-                      <Input
-                        className="h-8 w-full text-sm"
-                        defaultValue={e.one_liner ?? ""}
-                        placeholder="One-liner"
-                        onBlur={(ev) => handleInlineSave(e.id, "one_liner", ev.target.value.trim() || undefined)}
-                        onKeyDown={(ev) => {
-                          if (ev.key === "Enter") ev.currentTarget.blur();
-                          if (ev.key === "Escape") setEditing(null);
-                        }}
-                      />
-                    ) : (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="text-muted-foreground text-sm block truncate cursor-text hover:bg-muted/50 rounded px-1 -mx-1"
-                        onClick={() => setEditing({ id: e.id, field: "one_liner" })}
-                        onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "one_liner" })}
-                        title={e.one_liner ?? undefined}
-                      >
-                        {e.one_liner || "—"}
-                      </span>
-                    )}
+                    <span className="text-muted-foreground text-sm block truncate" title={e.one_liner ?? undefined}>
+                      {e.one_liner || "—"}
+                    </span>
                   </td>
-                  <td className="p-2">
-                    {isEditing(e.id, "stage") ? (
-                      <select
-                        className="h-8 w-full min-w-[100px] rounded-md border bg-background px-2 text-sm"
-                        defaultValue={e.stage ?? ""}
-                        onBlur={(ev) => handleInlineSave(e.id, "stage", ev.target.value || undefined)}
-                        onKeyDown={(ev) => ev.key === "Escape" && setEditing(null)}
-                      >
-                        {STAGE_OPTIONS.filter((o) => o.value).map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="block cursor-text hover:bg-muted/50 rounded px-1 -mx-1"
-                        onClick={() => setEditing({ id: e.id, field: "stage" })}
-                        onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "stage" })}
-                      >
-                        {e.stage ? titleCase(e.stage) : "—"}
-                      </span>
-                    )}
+                  <td className="p-2 whitespace-nowrap">
+                    {e.stage ? titleCase(e.stage) : "—"}
                   </td>
                   <td className="text-right p-2">
-                    {isEditing(e.id, "amount_raising") ? (
-                      <Input
-                        type="number"
-                        className="h-8 w-24 text-right text-sm ml-auto"
-                        defaultValue={e.amount_raising ?? ""}
-                        placeholder="—"
-                        onBlur={(ev) =>
-                          handleInlineSave(
-                            e.id,
-                            "amount_raising",
-                            ev.target.value === "" ? undefined : parseFloat(ev.target.value)
-                          )
-                        }
-                        onKeyDown={(ev) => {
-                          if (ev.key === "Enter") ev.currentTarget.blur();
-                          if (ev.key === "Escape") setEditing(null);
-                        }}
-                      />
-                    ) : (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="cursor-text hover:bg-muted/50 rounded px-1 -mx-1 block"
-                        onClick={() => setEditing({ id: e.id, field: "amount_raising" })}
-                        onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "amount_raising" })}
-                      >
-                        {formatCurrency(e.amount_raising)}
-                      </span>
-                    )}
+                    {formatCurrency(e.amount_raising)}
                   </td>
                   <td className="text-right p-2">
-                    {isEditing(e.id, "valuation") ? (
-                      <Input
-                        type="number"
-                        className="h-8 w-24 text-right text-sm ml-auto"
-                        defaultValue={e.valuation ?? ""}
-                        placeholder="—"
-                        onBlur={(ev) =>
-                          handleInlineSave(
-                            e.id,
-                            "valuation",
-                            ev.target.value === "" ? undefined : parseFloat(ev.target.value)
-                          )
-                        }
-                        onKeyDown={(ev) => {
-                          if (ev.key === "Enter") ev.currentTarget.blur();
-                          if (ev.key === "Escape") setEditing(null);
-                        }}
-                      />
-                    ) : (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="cursor-text hover:bg-muted/50 rounded px-1 -mx-1 block"
-                        onClick={() => setEditing({ id: e.id, field: "valuation" })}
-                        onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "valuation" })}
-                      >
-                        {formatCurrency(e.valuation)}
-                      </span>
-                    )}
+                    {formatCurrency(e.valuation)}
                   </td>
                   <td className="p-2">
-                    {isEditing(e.id, "location") ? (
-                      <Input
-                        className="h-8 w-full min-w-[80px] text-sm"
-                        defaultValue={e.location ?? ""}
-                        placeholder="—"
-                        onBlur={(ev) => handleInlineSave(e.id, "location", ev.target.value.trim() || undefined)}
-                        onKeyDown={(ev) => {
-                          if (ev.key === "Enter") ev.currentTarget.blur();
-                          if (ev.key === "Escape") setEditing(null);
-                        }}
-                      />
-                    ) : (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="text-muted-foreground block cursor-text hover:bg-muted/50 rounded px-1 -mx-1 truncate"
-                        onClick={() => setEditing({ id: e.id, field: "location" })}
-                        onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "location" })}
-                      >
-                        {e.location || "—"}
-                      </span>
-                    )}
+                    <span className="text-muted-foreground block truncate">
+                      {e.location || "—"}
+                    </span>
                   </td>
                   <td className="p-2">
-                    {isEditing(e.id, "source_type") ? (
-                      <select
-                        className="h-8 w-full min-w-[90px] rounded-md border bg-background px-2 text-sm"
-                        defaultValue={e.source_type ?? ""}
-                        onBlur={(ev) => handleInlineSave(e.id, "source_type", ev.target.value || undefined)}
-                        onKeyDown={(ev) => ev.key === "Escape" && setEditing(null)}
-                      >
-                        {SOURCE_OPTIONS.filter((o) => o.value).map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="block cursor-text hover:bg-muted/50 rounded px-1 -mx-1"
-                        onClick={() => setEditing({ id: e.id, field: "source_type" })}
-                        onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "source_type" })}
-                      >
-                        {e.source_type ? titleCase(e.source_type) : "—"}
-                      </span>
-                    )}
+                    {e.source_type ? titleCase(e.source_type) : "—"}
                   </td>
                   <td className="p-2">
-                    {isEditing(e.id, "status") ? (
-                      <select
-                        className="h-8 w-full min-w-[100px] rounded-md border bg-background px-2 text-sm"
-                        defaultValue={e.status}
-                        onBlur={(ev) => handleInlineSave(e.id, "status", ev.target.value)}
-                        onKeyDown={(ev) => ev.key === "Escape" && setEditing(null)}
-                      >
-                        {STATUS_OPTIONS.filter((o) => o.value).map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-xs cursor-text hover:ring-1 hover:ring-foreground/20 whitespace-nowrap",
-                          STATUS_COLORS[e.status] ?? "bg-muted text-muted-foreground",
-                        )}
-                        onClick={() => setEditing({ id: e.id, field: "status" })}
-                        onKeyDown={(ev) => ev.key === "Enter" && setEditing({ id: e.id, field: "status" })}
-                      >
-                        {titleCase(e.status)}
-                      </span>
-                    )}
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-xs whitespace-nowrap",
+                        STATUS_COLORS[statusKey(e.status)] ?? "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {displayStatus(e.status)}
+                    </span>
                   </td>
                   <td className="text-muted-foreground p-3 text-sm">
                     {new Date(e.created_at).toLocaleDateString()}
                   </td>
-                  <td className="p-2">
-                    <div className="flex items-center justify-end gap-0.5">
-                      {e.website && (
-                        <a
-                          href={e.website.startsWith("http") ? e.website : `https://${e.website}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                          title={`Open ${e.website}`}
-                        >
-                          <Globe className="size-4" />
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handlePromoteToDealRoom(e)}
-                        disabled={promotingId === e.id}
-                        className="rounded p-1.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-50"
-                        title={e.promoted_company_id && e.promoted_company_deal_status === "active" ? "Open in Active Deals" : "Promote to Active Deals"}
-                      >
-                        {promotingId === e.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <ArrowRight className="size-4" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(e)}
-                        className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        title="Delete"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
+                  <td className="p-2 text-right">
+                    <Link
+                      href={`/dealflow/${e.id}`}
+                      className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    >
+                      Edit
+                    </Link>
                   </td>
                 </tr>
               ))}
@@ -847,77 +714,6 @@ export default function DealflowPage() {
         </div>
       )}
 
-      <ConfirmDialog
-        open={!!promoteTarget}
-        onOpenChange={(open) => { if (!open) setPromoteTarget(null); }}
-        title={`Promote "${promoteTarget?.name}" to Active Deals?`}
-        description="All dealflow info, founders, and documents will carry over. You can continue diligence from Active Deals."
-        confirmLabel="Promote"
-        loading={promotingId === promoteTarget?.id}
-        onConfirm={confirmPromote}
-      />
-
-      {/* Import Notes Modal */}
-      <AlertDialogPrimitive.Root open={showImportNotes} onOpenChange={(open) => { if (!open && !importing) { setShowImportNotes(false); } }}>
-        <AlertDialogPrimitive.Portal>
-          <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-          <AlertDialogPrimitive.Content
-            className={cn(
-              "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2",
-              "rounded-xl border bg-card p-6 shadow-lg",
-              "data-[state=open]:animate-in data-[state=closed]:animate-out",
-              "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-              "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-              "data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]",
-              "data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
-            )}
-          >
-            <AlertDialogPrimitive.Title className="font-display text-lg font-semibold">
-              Import from call notes
-            </AlertDialogPrimitive.Title>
-            <AlertDialogPrimitive.Description className="mt-1 text-sm text-muted-foreground">
-              Paste your meeting notes and we&apos;ll extract the deal info automatically.
-            </AlertDialogPrimitive.Description>
-            <div className="mt-4 space-y-3">
-              <textarea
-                placeholder="Paste call notes here..."
-                value={importNotesText}
-                onChange={(e) => setImportNotesText(e.target.value)}
-                rows={8}
-                disabled={importing}
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
-              />
-              <Input
-                placeholder="Or paste a Granola link (optional)"
-                value={importNotesUrl}
-                onChange={(e) => setImportNotesUrl(e.target.value)}
-                disabled={importing}
-              />
-            </div>
-            <div className="mt-5 flex justify-end gap-3">
-              <AlertDialogPrimitive.Cancel asChild>
-                <Button variant="outline" size="sm" disabled={importing}>
-                  Cancel
-                </Button>
-              </AlertDialogPrimitive.Cancel>
-              <Button
-                size="sm"
-                disabled={importing || (!importNotesText.trim() && !importNotesUrl.trim())}
-                onClick={handleImportNotes}
-              >
-                {importing ? (
-                  <>
-                    <Loader2 className="mr-1.5 size-4 animate-spin" />
-                    Extracting deal info…
-                  </>
-                ) : (
-                  "Create deal"
-                )}
-              </Button>
-            </div>
-          </AlertDialogPrimitive.Content>
-        </AlertDialogPrimitive.Portal>
-      </AlertDialogPrimitive.Root>
       </>)}
 
       {/* ── People Tracker ──────────────────────────────────────── */}

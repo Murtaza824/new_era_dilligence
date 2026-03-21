@@ -34,6 +34,7 @@ class DealflowEntryCreate(BaseModel):
     notes: Optional[str] = None
     source_type: Optional[str] = None
     source_detail: Optional[str] = None
+    logo_url: Optional[str] = None
     status: Optional[str] = "none"
     founders: Optional[list[DealflowFounderCreate]] = None
 
@@ -50,6 +51,7 @@ class DealflowEntryUpdate(BaseModel):
     notes: Optional[str] = None
     source_type: Optional[str] = None
     source_detail: Optional[str] = None
+    logo_url: Optional[str] = None
     status: Optional[str] = None
     founders: Optional[list[DealflowFounderCreate]] = None
 
@@ -67,6 +69,7 @@ class DealflowEntryOut(BaseModel):
     notes: Optional[str] = None
     source_type: Optional[str] = None
     source_detail: Optional[str] = None
+    logo_url: Optional[str] = None
     status: str
     added_by_user_id: Optional[str] = None
     created_at: datetime

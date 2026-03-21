@@ -389,9 +389,44 @@ def _migrate_portfolio_deal_status():
         conn.commit()
 
 
+def _seed_locations():
+    """Seed initial location suggestions if the table is empty."""
+    db = SessionLocal()
+    try:
+        from app.models.location import Location
+        if db.query(Location).first() is not None:
+            return
+        for name in ["NYC", "San Francisco", "Boston", "Los Angeles"]:
+            db.add(Location(name=name))
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _migrate_dealflow_logo_url():
+    """Add logo_url to dealflow_entries if missing."""
+    with engine.connect() as conn:
+        if "sqlite" in DATABASE_URL:
+            try:
+                r = conn.execute(text("PRAGMA table_info(dealflow_entries)"))
+            except Exception:
+                return
+            cols = {row[1] for row in r.fetchall()}
+            if "logo_url" not in cols:
+                conn.execute(text("ALTER TABLE dealflow_entries ADD COLUMN logo_url VARCHAR"))
+                conn.commit()
+        else:
+            conn.execute(text("ALTER TABLE dealflow_entries ADD COLUMN IF NOT EXISTS logo_url VARCHAR"))
+            conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
+    _seed_locations()
+    _migrate_dealflow_logo_url()
     _migrate_portfolio_factors()
     _migrate_company_logo()
     _migrate_company_deal_fields()

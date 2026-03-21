@@ -3,6 +3,8 @@ from app.models.company import Company
 from app.models.contact_introduction_suggestion import ContactIntroductionSuggestion
 from app.models.dealflow_document import DealflowDocument
 from app.models.dealflow_entry import DealflowEntry
+from app.models.email_account import EmailAccount
+from app.models.email_message import EmailMessage
 from app.models.dealflow_founder import DealflowFounder
 from app.models.document import Document
 from app.models.intelligence_digest import IntelligenceDigest
@@ -14,6 +16,8 @@ from app.models.simulation import SimulationRun
 from app.models.portfolio import PortfolioSnapshot
 from app.models.portfolio_update import PortfolioUpdate
 from app.models.portfolio_simulation_run import PortfolioSimulationRun
+from app.models.location import Location
+from app.models.touchpoint import Touchpoint
 from app.models.tracked_person import TrackedPerson
 from app.models.user import User
 
@@ -24,6 +28,8 @@ __all__ = [
     "DealflowDocument",
     "DealflowEntry",
     "DealflowFounder",
+    "EmailAccount",
+    "EmailMessage",
     "Document",
     "IntelligenceDigest",
     "IntelligenceSource",
@@ -35,6 +41,8 @@ __all__ = [
     "PortfolioSnapshot",
     "PortfolioUpdate",
     "PortfolioSimulationRun",
+    "Location",
+    "Touchpoint",
     "TrackedPerson",
     "User",
 ]

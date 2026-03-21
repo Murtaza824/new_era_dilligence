@@ -9,6 +9,8 @@ import { ArrowLeft, Briefcase, FileText, Plus, Trash2, Upload } from "lucide-rea
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { CompanyLogo } from "@/components/company-logo";
+import { TouchpointsSection } from "@/components/touchpoints-section";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
@@ -16,7 +18,8 @@ import { dealflowApi, type DealflowEntryUpdateBody } from "@/lib/api";
 import type { DealflowDocument, DealflowEntry, DealflowFounder } from "@/types";
 
 const STATUS_OPTIONS = [
-  { value: "none", label: "None" },
+  { value: "lead", label: "Lead" },
+  { value: "active", label: "Active" },
   { value: "reached_out", label: "Reached out" },
   { value: "in_diligence", label: "In diligence" },
   { value: "passed", label: "Passed" },
@@ -25,13 +28,10 @@ const STATUS_OPTIONS = [
 
 const SOURCE_OPTIONS = [
   { value: "", label: "—" },
-  { value: "murtaza", label: "Murtaza" },
-  { value: "carter", label: "Carter" },
-  { value: "friend", label: "Friend" },
-  { value: "twitter", label: "Twitter" },
-  { value: "newsletter", label: "Newsletter" },
-  { value: "event", label: "Event" },
-  { value: "other", label: "Other" },
+  { value: "venture_partner", label: "Venture Partner" },
+  { value: "investor_intro", label: "Investor Intro" },
+  { value: "lp_intro", label: "LP Intro" },
+  { value: "self_sourced", label: "Self Sourced" },
 ];
 
 const STAGE_OPTIONS = [
@@ -64,6 +64,7 @@ export default function DealflowDetailPage() {
   const [newDocUrl, setNewDocUrl] = useState("");
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -92,6 +93,30 @@ export default function DealflowDetailPage() {
       toast.error("Failed to save");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    try {
+      const updated = await dealflowApi.entries.uploadLogo(entryId, file);
+      setEntry(updated);
+      toast.success("Logo updated");
+    } catch {
+      toast.error("Failed to upload logo");
+    }
+  };
+
+  const handleDeleteEntry = async () => {
+    if (!confirm(`Delete "${entry?.name}" from dealflow? This cannot be undone.`)) return;
+    try {
+      await dealflowApi.entries.delete(entryId);
+      toast.success("Entry deleted");
+      router.push("/dealflow");
+    } catch {
+      toast.error("Failed to delete");
     }
   };
 
@@ -213,7 +238,12 @@ export default function DealflowDetailPage() {
       </Link>
 
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-3">
+          <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+          <button type="button" onClick={() => logoInputRef.current?.click()} title="Click to change logo" className="shrink-0">
+            <CompanyLogo name={entry.name} logoUrl={entry.logo_url} size="lg" />
+          </button>
+          <div>
           <h1 className="font-display text-2xl font-semibold tracking-tight">{entry.name}</h1>
           {entry.promoted_company_id && entry.promoted_company_deal_status === "active" && (
             <Link
@@ -224,16 +254,27 @@ export default function DealflowDetailPage() {
               Active Deal →
             </Link>
           )}
+          </div>
         </div>
-        {!(entry.promoted_company_id && entry.promoted_company_deal_status === "active") && (
+        <div className="flex items-center gap-2">
+          {!(entry.promoted_company_id && entry.promoted_company_deal_status === "active") && (
+            <Button
+              onClick={() => setShowPromoteModal(true)}
+              className="gap-1.5"
+            >
+              <Briefcase className="size-4" />
+              Promote to Active Deals
+            </Button>
+          )}
           <Button
-            onClick={() => setShowPromoteModal(true)}
-            className="gap-1.5"
+            variant="outline"
+            onClick={handleDeleteEntry}
+            className="gap-1.5 text-destructive hover:bg-destructive/10"
           >
-            <Briefcase className="size-4" />
-            Promote to Active Deals
+            <Trash2 className="size-4" />
+            Delete
           </Button>
-        )}
+        </div>
       </div>
 
       {/* Editable fields */}
@@ -444,6 +485,11 @@ export default function DealflowDetailPage() {
             </li>
           ))}
         </ul>
+      </div>
+
+      {/* Touchpoints */}
+      <div className="mb-10 rounded-xl border bg-card p-4 shadow-sm">
+        <TouchpointsSection dealflowEntryId={entryId} />
       </div>
 
       {/* Documents */}

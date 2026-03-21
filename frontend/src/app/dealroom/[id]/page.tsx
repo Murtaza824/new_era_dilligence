@@ -5,10 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { Archive, ArrowLeft, Ban, Briefcase, ExternalLink, ImagePlus, Loader2, MapPin, Pencil, RefreshCw, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Ban, Briefcase, ExternalLink, ImagePlus, Loader2, MapPin, Pencil, RefreshCw, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { CompanyLogo } from "@/components/company-logo";
+import { TouchpointsSection } from "@/components/touchpoints-section";
 import { DealTermsTab } from "@/components/jarvis/deal-terms-tab";
 import { DocumentsTab } from "@/components/jarvis/documents-tab";
 import { MemoTab } from "@/components/jarvis/memo-tab";
@@ -21,7 +22,6 @@ import { cn } from "@/lib/utils";
 import type { Company } from "@/types";
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  archived: { label: "Archived", className: "bg-muted text-muted-foreground" },
   passed: { label: "Passed", className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
 };
 
@@ -227,20 +227,6 @@ export default function CompanyDetailPage() {
                 size="sm"
                 onClick={async () => {
                   try {
-                    const updated = await companiesApi.updateStatus(companyId, "archived");
-                    setCompany(updated);
-                    toast.success("Deal archived — materials saved");
-                  } catch { toast.error("Failed to archive"); }
-                }}
-              >
-                <Archive className="mr-1.5 size-4" />
-                Archive
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
                     const updated = await companiesApi.updateStatus(companyId, "passed");
                     setCompany(updated);
                     toast.success("Marked as passed — materials saved");
@@ -366,14 +352,17 @@ export default function CompanyDetailPage() {
       </div>
 
       {/* Tab content */}
-      {tab === "overview" && (
+      {tab === "overview" && (<>
         <OverviewTab
           companyId={companyId}
           companyName={company.name}
           onMemoGenerated={refreshCompany}
           setActiveTab={setTab}
         />
-      )}
+        <div className="mt-8 rounded-xl border bg-card p-4 shadow-sm">
+          <TouchpointsSection companyId={companyId} />
+        </div>
+      </>)}
       {tab === "deal" && (
         <DealTermsTab key={company.updated_at} companyId={companyId} company={company} onSaved={setCompany} />
       )}

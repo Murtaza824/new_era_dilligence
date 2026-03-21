@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import Link from "next/link";
 
-import { Archive, Ban, Plus, Building2, FileText, FileCheck, RotateCcw, Trash2 } from "lucide-react";
+import { Ban, Plus, Building2, FileText, FileCheck, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { CompanyLogo } from "@/components/company-logo";
@@ -15,11 +15,10 @@ import { companies as companiesApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Company } from "@/types";
 
-type StatusFilter = "active" | "archived" | "passed" | "all";
+type StatusFilter = "active" | "passed" | "all";
 
 const STATUS_TABS: { value: StatusFilter; label: string }[] = [
   { value: "active", label: "Active" },
-  { value: "archived", label: "Archived" },
   { value: "passed", label: "Passed" },
   { value: "all", label: "All" },
 ];
@@ -79,7 +78,7 @@ export default function CompaniesPage() {
       } else {
         setList((prev) => prev.filter((c) => c.id !== company.id));
       }
-      const labels: Record<string, string> = { active: "reactivated", archived: "archived", passed: "marked as passed" };
+      const labels: Record<string, string> = { active: "reactivated", passed: "marked as passed" };
       toast.success(`"${company.name}" ${labels[newStatus] ?? "updated"}`);
     } catch {
       toast.error("Failed to update status");
@@ -196,24 +195,15 @@ export default function CompaniesPage() {
               {/* Action buttons */}
               <div className="absolute top-3 right-3 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
                 {c.deal_status === "active" && (
-                  <>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleStatusChange(c, "archived"); }}
-                      className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      title="Archive deal"
-                    >
-                      <Archive className="size-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleStatusChange(c, "passed"); }}
-                      className="rounded-md p-1.5 text-muted-foreground hover:bg-orange-100 hover:text-orange-600 dark:hover:bg-orange-900/30"
-                      title="Pass on deal"
-                    >
-                      <Ban className="size-3.5" />
-                    </button>
-                  </>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleStatusChange(c, "passed"); }}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-orange-100 hover:text-orange-600 dark:hover:bg-orange-900/30"
+                    title="Pass on deal"
+                  >
+                    <Ban className="size-3.5" />
+                  </button>
                 )}
-                {(c.deal_status === "archived" || c.deal_status === "passed") && (
+                {c.deal_status === "passed" && (
                   <button
                     onClick={(e) => { e.stopPropagation(); handleStatusChange(c, "active"); }}
                     className="rounded-md p-1.5 text-muted-foreground hover:bg-green-100 hover:text-green-600 dark:hover:bg-green-900/30"
@@ -250,7 +240,6 @@ export default function CompaniesPage() {
                 {c.deal_status !== "active" && (
                   <span className={cn(
                     "mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                    c.deal_status === "archived" && "bg-muted text-muted-foreground",
                     c.deal_status === "passed" && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
                   )}>
                     {c.deal_status}
