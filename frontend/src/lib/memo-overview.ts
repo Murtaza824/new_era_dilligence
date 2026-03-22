@@ -2,7 +2,7 @@
  * Helpers for displaying memo overview and team on company/portfolio pages.
  */
 
-/** Plain-text single paragraph from markdown-ish content (e.g. Company Overview). */
+/** Plain-text single paragraph from markdown-ish content (e.g. Company Overview). Capped at ~600 chars. */
 export function overviewAsParagraph(content: string): string {
   const text = content
     .replace(/#+\s*/g, "")
@@ -11,7 +11,9 @@ export function overviewAsParagraph(content: string): string {
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/\n+/g, " ")
     .trim();
-  return text;
+  if (text.length <= 600) return text;
+  const cut = text.lastIndexOf(" ", 600);
+  return text.slice(0, cut > 400 ? cut : 600) + "…";
 }
 
 export interface Founder {

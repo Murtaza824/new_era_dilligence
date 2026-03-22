@@ -34,7 +34,7 @@ SECTIONS = [
             "- The core problem it solves and for whom\n"
             "- Stage of the company (pre-seed, seed, Series A, etc.)\n\n"
             "Write in a professional, analytical tone suitable for an investment committee. "
-            "Use specific facts from the sources. 2-4 paragraphs."
+            "Use specific facts from the sources. Keep it SHORT — 1-2 brief paragraphs, no more than 4-5 sentences total."
         ),
     },
     {

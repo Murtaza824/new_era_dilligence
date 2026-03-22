@@ -83,9 +83,22 @@ def get_company(company_id: str, db: Session = Depends(get_db)):
 
 @router.delete("/{company_id}")
 def delete_company(company_id: str, db: Session = Depends(get_db)):
+    """Delete a company and clean up all FK references first."""
+    from app.models.contact_introduction_suggestion import ContactIntroductionSuggestion
+    from app.models.touchpoint import Touchpoint
+
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
+
+    db.query(Document).filter(Document.company_id == company_id).delete(synchronize_session=False)
+    db.query(Memo).filter(Memo.company_id == company_id).delete(synchronize_session=False)
+    db.query(SimulationRun).filter(SimulationRun.company_id == company_id).delete(synchronize_session=False)
+    db.query(Touchpoint).filter(Touchpoint.company_id == company_id).delete(synchronize_session=False)
+    db.query(ContactIntroductionSuggestion).filter(
+        ContactIntroductionSuggestion.target_company_id == company_id
+    ).update({ContactIntroductionSuggestion.target_company_id: None}, synchronize_session=False)
+
     db.delete(company)
     db.commit()
     return {"ok": True}
