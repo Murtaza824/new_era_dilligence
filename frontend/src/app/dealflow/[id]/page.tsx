@@ -3,22 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import { ArrowLeft, Briefcase, ExternalLink, FileText, Globe, MapPin, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { CompanyLogo } from "@/components/company-logo";
+import { LocationPicker } from "@/components/location-picker";
 import { TouchpointsSection } from "@/components/touchpoints-section";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
-import { dealflowApi, type DealflowEntryUpdateBody } from "@/lib/api";
+import { dealflowApi, locationsApi, type DealflowEntryUpdateBody, type LocationItem } from "@/lib/api";
 import type { DealflowDocument, DealflowEntry, DealflowFounder } from "@/types";
 
 const STATUS_OPTIONS = [
   { value: "lead", label: "Lead" },
+  { value: "tracking", label: "Tracking" },
   { value: "active", label: "Active Deal" },
   { value: "reached_out", label: "Reached out" },
   { value: "passed", label: "Passed" },
@@ -43,7 +45,6 @@ const STAGE_OPTIONS = [
 ];
 
 function displayStatus(s: string): string {
-  if (s === "in_diligence") return "In diligence"; // legacy DB values
   const match = STATUS_OPTIONS.find((o) => o.value === s);
   return match ? match.label : s.replace(/_/g, " ");
 }
@@ -63,6 +64,7 @@ function fmtAmount(n: number | null | undefined): string | null {
 export default function DealflowDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const entryId = params.id as string;
   const { user, loading: authLoading } = useAuth();
 
@@ -71,7 +73,7 @@ export default function DealflowDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [promoting, setPromoting] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const editing = searchParams.get("edit") === "1";
   const [showAddFounder, setShowAddFounder] = useState(false);
   const [newFounderName, setNewFounderName] = useState("");
   const [newFounderLinkedIn, setNewFounderLinkedIn] = useState("");
@@ -81,6 +83,7 @@ export default function DealflowDetailPage() {
   const [newDocType, setNewDocType] = useState("pitch_deck");
   const [newDocUrl, setNewDocUrl] = useState("");
   const [showPromoteModal, setShowPromoteModal] = useState(false);
+  const [locations, setLocations] = useState<LocationItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,6 +103,12 @@ export default function DealflowDetailPage() {
         .finally(() => setLoading(false));
     }
   }, [authLoading, user, entryId, router]);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      locationsApi.list().then(setLocations).catch(() => {});
+    }
+  }, [authLoading, user]);
 
   const save = async (body: DealflowEntryUpdateBody) => {
     setSaving(true);
@@ -133,8 +142,9 @@ export default function DealflowDetailPage() {
       await dealflowApi.entries.delete(entryId);
       toast.success("Entry deleted");
       router.push("/dealflow");
-    } catch {
-      toast.error("Failed to delete");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to delete";
+      toast.error(msg);
     }
   };
 
@@ -319,7 +329,11 @@ export default function DealflowDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.replace(`/dealflow/${entryId}?edit=1`, { scroll: false })}
+              >
                 <Pencil className="mr-1.5 size-4" />
                 Edit
               </Button>
@@ -452,7 +466,11 @@ export default function DealflowDetailPage() {
               </button>
               <h1 className="font-display text-2xl font-semibold tracking-tight">{entry.name}</h1>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.replace(`/dealflow/${entryId}`, { scroll: false })}
+            >
               <ArrowLeft className="mr-1.5 size-4" />
               Done
             </Button>
@@ -480,7 +498,23 @@ export default function DealflowDetailPage() {
               </div>
               <div>
                 <label htmlFor="dealflow-location" className="text-muted-foreground text-xs font-medium">Location</label>
-                <Input id="dealflow-location" defaultValue={entry.location ?? ""} onBlur={(e) => save({ location: e.target.value || undefined })} className="mt-0.5" />
+                <div className="mt-0.5">
+                  <LocationPicker
+                    variant="field"
+                    buttonId="dealflow-location"
+                    locations={locations}
+                    value={entry.location ?? ""}
+                    onChange={(v) => {
+                      void save({ location: v || undefined });
+                    }}
+                    onAdd={async (name) => {
+                      const loc = await locationsApi.create(name);
+                      setLocations((prev) => [...prev, loc].sort((a, b) => a.name.localeCompare(b.name)));
+                      await save({ location: loc.name });
+                    }}
+                    className="[&_button]:max-w-none w-full max-w-md"
+                  />
+                </div>
               </div>
               <div>
                 <label htmlFor="dealflow-stage" className="text-muted-foreground text-xs font-medium">Stage</label>
@@ -509,9 +543,6 @@ export default function DealflowDetailPage() {
               <div>
                 <label htmlFor="dealflow-status" className="text-muted-foreground text-xs font-medium">Status</label>
                 <select id="dealflow-status" defaultValue={entry.status} onChange={(e) => save({ status: e.target.value })} className="mt-0.5 w-full rounded-md border bg-background px-3 py-2 text-sm">
-                  {entry.status === "in_diligence" && (
-                    <option value="in_diligence">In diligence (legacy — pick a new status)</option>
-                  )}
                   {STATUS_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                 </select>
               </div>

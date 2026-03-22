@@ -21,7 +21,7 @@ class Company(Base):
     source_type = Column(String, nullable=True)
     source_detail = Column(String, nullable=True)
     company_linkedin_url = Column(String, nullable=True)
-    deal_status = Column(String, nullable=False, default="active")  # active | archived | passed
+    deal_status = Column(String, nullable=False, default="active")  # active | passed | portfolio
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
         DateTime,

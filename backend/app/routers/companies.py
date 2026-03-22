@@ -110,7 +110,7 @@ def update_deal_status(
             DealflowEntry.id == company.dealflow_entry_id
         ).first()
         if df_entry:
-            status_map = {"active": "in_diligence", "passed": "passed", "archived": "passed"}
+            status_map = {"active": "active", "passed": "passed", "archived": "passed"}
             df_entry.status = status_map.get(status, df_entry.status)
     db.commit()
     db.refresh(company)

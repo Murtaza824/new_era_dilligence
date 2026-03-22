@@ -138,8 +138,9 @@ export default function PortfolioPage() {
       await portfolioApi.delete(id);
       setRows((prev) => prev.filter((r) => r.id !== id));
       toast.success(`"${name}" removed`);
-    } catch {
-      toast.error("Failed to remove");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to remove";
+      toast.error(msg);
     }
   };
 

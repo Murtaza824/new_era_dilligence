@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.models.contact_introduction_suggestion import ContactIntroductionSuggestion
+from app.models.news_item import NewsItem
 from app.models.portfolio import PortfolioSnapshot
 from app.models.portfolio_update import PortfolioUpdate
 from app.models.portfolio_simulation_run import PortfolioSimulationRun
@@ -90,10 +92,25 @@ def update_portfolio_entry(
 
 @router.delete("/{entry_id}")
 def delete_portfolio_entry(entry_id: str, db: Session = Depends(get_db)):
-    """Delete a single portfolio entry."""
+    """Delete a single portfolio entry and dependent rows (FKs are not CASCADE in all DBs)."""
     snap = db.query(PortfolioSnapshot).filter(PortfolioSnapshot.id == entry_id).first()
     if not snap:
         raise HTTPException(status_code=404, detail="Portfolio entry not found")
+
+    # Orphaned children would violate FK constraints on SQLite/Postgres default behavior
+    db.query(PortfolioUpdate).filter(PortfolioUpdate.portfolio_snapshot_id == entry_id).delete(
+        synchronize_session=False
+    )
+    db.query(SimulationRun).filter(SimulationRun.portfolio_snapshot_id == entry_id).delete(
+        synchronize_session=False
+    )
+    db.query(ContactIntroductionSuggestion).filter(
+        ContactIntroductionSuggestion.target_portfolio_id == entry_id
+    ).update({ContactIntroductionSuggestion.target_portfolio_id: None}, synchronize_session=False)
+    db.query(NewsItem).filter(NewsItem.portfolio_snapshot_id == entry_id).update(
+        {NewsItem.portfolio_snapshot_id: None}, synchronize_session=False
+    )
+
     db.delete(snap)
     db.commit()
     return {"ok": True}

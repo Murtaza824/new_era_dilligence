@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import { Globe, LayoutList, Linkedin, Plus, Search, Trash2, UserPlus } from "luc
 import { toast } from "sonner";
 
 import { CompanyLogo } from "@/components/company-logo";
+import { LocationPicker } from "@/components/location-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
@@ -23,7 +24,6 @@ function titleCase(s: string): string {
 function displayStatus(status: string): string {
   if (status === "none") return "Lead";
   if (status === "active") return "Active Deal";
-  if (status === "in_diligence") return "In diligence"; // legacy DB values
   return titleCase(status.replace(/_/g, " "));
 }
 
@@ -34,6 +34,7 @@ function statusKey(status: string): string {
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
   { value: "lead", label: "Lead" },
+  { value: "tracking", label: "Tracking" },
   { value: "active", label: "Active Deal" },
   { value: "reached_out", label: "Reached out" },
   { value: "passed", label: "Passed" },
@@ -43,9 +44,9 @@ const STATUS_OPTIONS = [
 const STATUS_COLORS: Record<string, string> = {
   lead: "bg-muted text-muted-foreground",
   none: "bg-muted text-muted-foreground",
-  active: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
+  tracking: "bg-violet-100 text-violet-800 dark:bg-violet-950/40 dark:text-violet-300",
+  active: "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400",
   reached_out: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  in_diligence: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   passed: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
   invested: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
 };
@@ -72,105 +73,6 @@ function formatCurrency(n: number | null | undefined): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`;
   return `$${n}`;
-}
-
-function LocationFilter({
-  locations,
-  value,
-  onChange,
-  onAdd,
-}: {
-  locations: LocationItem[];
-  value: string;
-  onChange: (v: string) => void;
-  onAdd: (name: string) => Promise<void>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [newLoc, setNewLoc] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const filtered = newLoc.trim()
-    ? locations.filter((l) => l.name.toLowerCase().includes(newLoc.toLowerCase()))
-    : locations;
-  const exactMatch = locations.some((l) => l.name.toLowerCase() === newLoc.trim().toLowerCase());
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="rounded-md border bg-background px-3 py-2 text-sm min-w-[140px] text-left"
-      >
-        {value || "All locations"}
-      </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-56 rounded-md border bg-card shadow-lg">
-          <div className="p-2">
-            <input
-              type="text"
-              placeholder="Search or add…"
-              value={newLoc}
-              onChange={(e) => setNewLoc(e.target.value)}
-              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              onKeyDown={async (e) => {
-                if (e.key === "Enter" && newLoc.trim() && !exactMatch) {
-                  await onAdd(newLoc.trim());
-                  setNewLoc("");
-                  setOpen(false);
-                }
-              }}
-            />
-          </div>
-          <div className="max-h-48 overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => { onChange(""); setOpen(false); setNewLoc(""); }}
-              className={cn(
-                "w-full px-3 py-1.5 text-left text-sm hover:bg-muted",
-                !value && "font-medium text-foreground",
-              )}
-            >
-              All locations
-            </button>
-            {filtered.map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                onClick={() => { onChange(l.name); setOpen(false); setNewLoc(""); }}
-                className={cn(
-                  "w-full px-3 py-1.5 text-left text-sm hover:bg-muted",
-                  value === l.name && "font-medium text-foreground",
-                )}
-              >
-                {l.name}
-              </button>
-            ))}
-            {newLoc.trim() && !exactMatch && (
-              <button
-                type="button"
-                onClick={async () => {
-                  await onAdd(newLoc.trim());
-                  setNewLoc("");
-                  setOpen(false);
-                }}
-                className="w-full px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
-              >
-                + Add &quot;{newLoc.trim()}&quot;
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 type SubTab = "companies" | "people";
@@ -475,11 +377,21 @@ export default function DealflowPage() {
               onChange={(e) => setNewOneLiner(e.target.value)}
               className="sm:col-span-2"
             />
-            <Input
-              placeholder="Location"
-              value={newLocation}
-              onChange={(e) => setNewLocation(e.target.value)}
-            />
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-xs font-medium">Location</span>
+              <LocationPicker
+                variant="field"
+                locations={locations}
+                value={newLocation}
+                onChange={setNewLocation}
+                onAdd={async (name) => {
+                  const loc = await locationsApi.create(name);
+                  setLocations((prev) => [...prev, loc].sort((a, b) => a.name.localeCompare(b.name)));
+                  setNewLocation(loc.name);
+                }}
+                className="max-w-none [&_button]:max-w-none"
+              />
+            </div>
             <select
               value={newStage}
               onChange={(e) => setNewStage(e.target.value)}
@@ -588,16 +500,20 @@ export default function DealflowPage() {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
-        <LocationFilter
-          locations={locations}
-          value={locationFilter}
-          onChange={setLocationFilter}
-          onAdd={async (name) => {
-            const loc = await locationsApi.create(name);
-            setLocations((prev) => [...prev, loc].sort((a, b) => a.name.localeCompare(b.name)));
-            setLocationFilter(loc.name);
-          }}
-        />
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-muted-foreground text-xs font-medium whitespace-nowrap">Location</span>
+          <LocationPicker
+            variant="filter"
+            locations={locations}
+            value={locationFilter}
+            onChange={setLocationFilter}
+            onAdd={async (name) => {
+              const loc = await locationsApi.create(name);
+              setLocations((prev) => [...prev, loc].sort((a, b) => a.name.localeCompare(b.name)));
+              setLocationFilter(loc.name);
+            }}
+          />
+        </div>
       </div>
 
       {loading && (
@@ -710,7 +626,7 @@ export default function DealflowPage() {
                   </td>
                   <td className="sticky right-0 z-10 border-l border-border/70 bg-card p-2 text-right whitespace-nowrap shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.08)] transition-colors group-hover:bg-muted/30 dark:bg-card dark:shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.3)] dark:group-hover:bg-muted/30">
                     <Link
-                      href={`/dealflow/${e.id}`}
+                      href={`/dealflow/${e.id}?edit=1`}
                       className="inline-flex rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                     >
                       Edit

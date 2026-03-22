@@ -405,6 +405,15 @@ def _seed_locations():
         db.close()
 
 
+def _migrate_in_diligence_to_active():
+    """Convert legacy 'in_diligence' dealflow status to 'active' (Active Deal)."""
+    with engine.connect() as conn:
+        conn.execute(text(
+            "UPDATE dealflow_entries SET status = 'active' WHERE status = 'in_diligence'"
+        ))
+        conn.commit()
+
+
 def _migrate_dealflow_logo_url():
     """Add logo_url to dealflow_entries if missing."""
     with engine.connect() as conn:
@@ -443,3 +452,4 @@ def init_db():
     _migrate_company_deal_status()
     _migrate_user_name()
     _migrate_portfolio_deal_status()
+    _migrate_in_diligence_to_active()

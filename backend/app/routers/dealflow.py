@@ -328,7 +328,8 @@ def list_entries(
     if stage is not None and stage.strip():
         query = query.filter(DealflowEntry.stage == stage.strip())
     if location is not None and location.strip():
-        query = query.filter(DealflowEntry.location == location.strip())
+        term = f"%{location.strip()}%"
+        query = query.filter(DealflowEntry.location.ilike(term))
     entries = query.all()
     return [_entry_to_out(e, db) for e in entries]
 
@@ -365,9 +366,41 @@ def update_entry(
 
 @router.delete("/entries/{entry_id}")
 def delete_entry(entry_id: str, db: Session = Depends(get_db)):
+    """Remove a dealflow entry; clear FKs from related rows first (DBs often lack ON DELETE CASCADE)."""
+    from app.models.contact_introduction_suggestion import ContactIntroductionSuggestion
+    from app.models.email_message import EmailMessage
+    from app.models.touchpoint import Touchpoint
+    from app.models.tracked_person import TrackedPerson
+
     entry = db.query(DealflowEntry).filter(DealflowEntry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Dealflow entry not found")
+
+    db.query(Company).filter(Company.dealflow_entry_id == entry_id).update(
+        {Company.dealflow_entry_id: None}, synchronize_session=False
+    )
+    db.query(Touchpoint).filter(Touchpoint.dealflow_entry_id == entry_id).delete(
+        synchronize_session=False
+    )
+    db.query(ContactIntroductionSuggestion).filter(
+        ContactIntroductionSuggestion.target_dealflow_entry_id == entry_id
+    ).update(
+        {ContactIntroductionSuggestion.target_dealflow_entry_id: None},
+        synchronize_session=False,
+    )
+    db.query(EmailMessage).filter(EmailMessage.dealflow_entry_id == entry_id).update(
+        {EmailMessage.dealflow_entry_id: None}, synchronize_session=False
+    )
+    db.query(TrackedPerson).filter(TrackedPerson.dealflow_entry_id == entry_id).update(
+        {TrackedPerson.dealflow_entry_id: None}, synchronize_session=False
+    )
+    db.query(DealflowFounder).filter(DealflowFounder.dealflow_entry_id == entry_id).delete(
+        synchronize_session=False
+    )
+    db.query(DealflowDocument).filter(DealflowDocument.dealflow_entry_id == entry_id).delete(
+        synchronize_session=False
+    )
+
     db.delete(entry)
     db.commit()
     return {"ok": True}
