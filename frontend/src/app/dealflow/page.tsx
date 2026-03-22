@@ -22,7 +22,9 @@ function titleCase(s: string): string {
 
 function displayStatus(status: string): string {
   if (status === "none") return "Lead";
-  return titleCase(status);
+  if (status === "active") return "Active Deal";
+  if (status === "in_diligence") return "In diligence"; // legacy DB values
+  return titleCase(status.replace(/_/g, " "));
 }
 
 function statusKey(status: string): string {
@@ -32,9 +34,8 @@ function statusKey(status: string): string {
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
   { value: "lead", label: "Lead" },
-  { value: "active", label: "Active" },
+  { value: "active", label: "Active Deal" },
   { value: "reached_out", label: "Reached out" },
-  { value: "in_diligence", label: "In diligence" },
   { value: "passed", label: "Passed" },
   { value: "invested", label: "Invested" },
 ];
@@ -381,7 +382,7 @@ export default function DealflowPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-6xl px-6 pt-10 pb-20">
+    <div className="mx-auto w-full max-w-[min(100%,92rem)] px-4 sm:px-6 pt-10 pb-20">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight">Dealflow</h1>
@@ -617,30 +618,45 @@ export default function DealflowPage() {
 
       {!loading && list.length > 0 && (
         <div className="overflow-x-auto rounded-lg border bg-card">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+              <col className="w-[14%]" />
+              <col className="w-[22%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[9%]" />
+              <col className="w-[9%]" />
+              <col className="w-[90px]" />
+            </colgroup>
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="text-left p-3 font-medium">Name</th>
-                <th className="text-left p-3 font-medium">One-liner</th>
-                <th className="text-left p-3 font-medium">Stage</th>
-                <th className="text-right p-3 font-medium">Amount</th>
-                <th className="text-right p-3 font-medium">Valuation</th>
-                <th className="text-left p-3 font-medium">Location</th>
-                <th className="text-left p-3 font-medium">Source</th>
-                <th className="text-left p-3 font-medium">Status</th>
-                <th className="text-left p-3 font-medium">Created</th>
-                <th className="w-10 p-3" />
+                <th className="text-left p-2.5 font-medium">Name</th>
+                <th className="text-left p-2.5 font-medium">One-liner</th>
+                <th className="text-left p-2.5 font-medium">Stage</th>
+                <th className="text-right p-2.5 font-medium">Amount</th>
+                <th className="text-right p-2.5 font-medium">Valuation</th>
+                <th className="text-left p-2.5 font-medium">Location</th>
+                <th className="text-left p-2.5 font-medium">Source</th>
+                <th className="text-left p-2.5 font-medium">Status</th>
+                <th className="text-left p-2.5 font-medium">Created</th>
+                <th className="sticky right-0 z-20 border-l border-border/70 bg-muted/95 p-2.5 text-right font-medium shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.12)] backdrop-blur-sm dark:shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.35)]">
+                  Edit
+                </th>
               </tr>
             </thead>
             <tbody>
               {list.map((e) => (
-                <tr key={e.id} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="p-2 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
+                <tr key={e.id} className="group border-b last:border-0 hover:bg-muted/30">
+                  <td className="p-2 min-w-0 overflow-hidden">
+                    <div className="flex min-w-0 items-center gap-2">
                       <CompanyLogo name={e.name} logoUrl={e.logo_url} size="sm" />
                       <Link
                         href={`/dealflow/${e.id}`}
-                        className="font-medium text-foreground hover:underline"
+                        className="min-w-0 truncate font-medium text-foreground hover:underline"
+                        title={e.name}
                       >
                         {e.name}
                       </Link>
@@ -655,17 +671,9 @@ export default function DealflowPage() {
                           <Globe className="size-3.5" />
                         </a>
                       )}
-                      {e.promoted_company_id && e.promoted_company_deal_status === "active" && (
-                        <Link
-                          href={`/dealroom/${e.promoted_company_id}`}
-                          className="rounded bg-green-500/15 px-1.5 py-0.5 text-xs text-green-700 dark:text-green-400 hover:underline shrink-0"
-                        >
-                          Active Deal
-                        </Link>
-                      )}
                     </div>
                   </td>
-                  <td className="p-2 max-w-[200px]">
+                  <td className="p-2 min-w-0">
                     <span className="text-muted-foreground text-sm block truncate" title={e.one_liner ?? undefined}>
                       {e.one_liner || "—"}
                     </span>
@@ -697,13 +705,13 @@ export default function DealflowPage() {
                       {displayStatus(e.status)}
                     </span>
                   </td>
-                  <td className="text-muted-foreground p-3 text-sm">
+                  <td className="text-muted-foreground p-2 text-sm whitespace-nowrap">
                     {new Date(e.created_at).toLocaleDateString()}
                   </td>
-                  <td className="p-2 text-right">
+                  <td className="sticky right-0 z-10 border-l border-border/70 bg-card p-2 text-right whitespace-nowrap shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.08)] transition-colors group-hover:bg-muted/30 dark:bg-card dark:shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.3)] dark:group-hover:bg-muted/30">
                     <Link
                       href={`/dealflow/${e.id}`}
-                      className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                      className="inline-flex rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                     >
                       Edit
                     </Link>

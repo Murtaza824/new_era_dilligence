@@ -261,33 +261,30 @@ export default function CompanyDetailPage() {
         </div>
       </div>
 
-      {/* Dealflow context: founders and notes */}
-      {(company.dealflow_founders.length > 0 || company.notes) && (
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {company.dealflow_founders.length > 0 && (
-            <div className="rounded-xl border bg-card p-4">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Founders</h3>
-              <ul className="space-y-1.5">
-                {company.dealflow_founders.map((f) => (
-                  <li key={f.id} className="flex items-center gap-2 text-sm">
-                    <span className="font-medium">{f.name}</span>
-                    {f.linkedin_url && (
-                      <a href={f.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400 text-xs">LinkedIn</a>
-                    )}
-                    {f.email && (
-                      <a href={`mailto:${f.email}`} className="text-muted-foreground text-xs">{f.email}</a>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {company.notes && (
-            <div className="rounded-xl border bg-card p-4">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</h3>
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{company.notes}</p>
-            </div>
-          )}
+      {/* Dealflow context: founders as horizontal chips (notes live in touchpoints) */}
+      {company.dealflow_founders.length > 0 && (
+        <div className="mb-6 rounded-xl border bg-card p-4">
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Founders</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            {company.dealflow_founders.map((f) => (
+              <div
+                key={f.id}
+                className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg border bg-muted/40 px-3 py-2 text-sm shadow-sm"
+              >
+                <span className="font-medium">{f.name}</span>
+                {f.linkedin_url && (
+                  <a href={f.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400 text-xs shrink-0">
+                    LinkedIn
+                  </a>
+                )}
+                {f.email && (
+                  <a href={`mailto:${f.email}`} className="text-muted-foreground text-xs truncate max-w-[200px]">
+                    {f.email}
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

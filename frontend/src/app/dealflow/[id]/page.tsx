@@ -19,9 +19,8 @@ import type { DealflowDocument, DealflowEntry, DealflowFounder } from "@/types";
 
 const STATUS_OPTIONS = [
   { value: "lead", label: "Lead" },
-  { value: "active", label: "Active" },
+  { value: "active", label: "Active Deal" },
   { value: "reached_out", label: "Reached out" },
-  { value: "in_diligence", label: "In diligence" },
   { value: "passed", label: "Passed" },
   { value: "invested", label: "Invested" },
 ];
@@ -44,8 +43,9 @@ const STAGE_OPTIONS = [
 ];
 
 function displayStatus(s: string): string {
+  if (s === "in_diligence") return "In diligence"; // legacy DB values
   const match = STATUS_OPTIONS.find((o) => o.value === s);
-  return match ? match.label : s;
+  return match ? match.label : s.replace(/_/g, " ");
 }
 
 function displaySource(s: string): string {
@@ -316,15 +316,6 @@ export default function DealflowDetailPage() {
                     </a>
                   )}
                 </div>
-                {entry.promoted_company_id && entry.promoted_company_deal_status === "active" && (
-                  <Link
-                    href={`/dealroom/${entry.promoted_company_id}`}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-green-500/15 px-2.5 py-1 text-sm text-green-700 dark:text-green-400"
-                  >
-                    <Briefcase className="size-4" />
-                    Active Deal →
-                  </Link>
-                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -350,33 +341,30 @@ export default function DealflowDetailPage() {
             </div>
           </div>
 
-          {/* Founders + Notes cards */}
-          {(entry.founders.length > 0 || entry.notes) && (
-            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {entry.founders.length > 0 && (
-                <div className="rounded-xl border bg-card p-4">
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Founders</h3>
-                  <ul className="space-y-1.5">
-                    {entry.founders.map((f) => (
-                      <li key={f.id} className="flex items-center gap-2 text-sm">
-                        <span className="font-medium">{f.name}</span>
-                        {f.linkedin_url && (
-                          <a href={f.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400 text-xs">LinkedIn</a>
-                        )}
-                        {f.email && (
-                          <a href={`mailto:${f.email}`} className="text-muted-foreground text-xs">{f.email}</a>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {entry.notes && (
-                <div className="rounded-xl border bg-card p-4">
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</h3>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{entry.notes}</p>
-                </div>
-              )}
+          {/* Founders — horizontal chips (notes live in touchpoints) */}
+          {entry.founders.length > 0 && (
+            <div className="mb-6 rounded-xl border bg-card p-4">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Founders</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                {entry.founders.map((f) => (
+                  <div
+                    key={f.id}
+                    className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg border bg-muted/40 px-3 py-2 text-sm shadow-sm"
+                  >
+                    <span className="font-medium">{f.name}</span>
+                    {f.linkedin_url && (
+                      <a href={f.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline dark:text-blue-400 text-xs shrink-0">
+                        LinkedIn
+                      </a>
+                    )}
+                    {f.email && (
+                      <a href={`mailto:${f.email}`} className="text-muted-foreground text-xs truncate max-w-[200px]">
+                        {f.email}
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -521,6 +509,9 @@ export default function DealflowDetailPage() {
               <div>
                 <label htmlFor="dealflow-status" className="text-muted-foreground text-xs font-medium">Status</label>
                 <select id="dealflow-status" defaultValue={entry.status} onChange={(e) => save({ status: e.target.value })} className="mt-0.5 w-full rounded-md border bg-background px-3 py-2 text-sm">
+                  {entry.status === "in_diligence" && (
+                    <option value="in_diligence">In diligence (legacy — pick a new status)</option>
+                  )}
                   {STATUS_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
                 </select>
               </div>
@@ -554,23 +545,31 @@ export default function DealflowDetailPage() {
             {entry.founders.length === 0 && !showAddFounder && (
               <p className="text-muted-foreground text-sm">No founders added yet.</p>
             )}
-            <ul className="space-y-2">
+            <div className="flex flex-wrap items-stretch gap-2">
               {entry.founders.map((f) => (
-                <li key={f.id} className="flex items-center justify-between rounded-md border bg-background/50 px-3 py-2">
+                <div
+                  key={f.id}
+                  className="inline-flex max-w-full items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm shadow-sm"
+                >
                   <div className="min-w-0">
                     <span className="font-medium">{f.name}</span>
                     {(f.linkedin_url || f.twitter_url || f.email) && (
-                      <div className="text-muted-foreground text-xs mt-0.5 truncate">
+                      <div className="text-muted-foreground text-xs mt-0.5 truncate max-w-[240px]">
                         {[f.linkedin_url, f.twitter_url, f.email].filter(Boolean).join(" · ")}
                       </div>
                     )}
                   </div>
-                  <button type="button" onClick={() => handleDeleteFounder(f)} className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteFounder(f)}
+                    className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    title="Remove founder"
+                  >
                     <Trash2 className="size-4" />
                   </button>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         </>
       )}
