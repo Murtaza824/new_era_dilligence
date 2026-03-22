@@ -148,17 +148,32 @@ def create_entry(
 
 
 _NOTES_EXTRACTION_SYSTEM = """You are a venture capital analyst. Extract structured deal information from meeting/call notes.
+
+IMPORTANT RULES:
+- If the company website is not explicitly mentioned, INFER it from the company name. Try common patterns like "companyname.com", "companyname.ai", "companyname.io", "getcompanyname.com". Pick the most likely one.
+- Extract ALL people mentioned with their roles (founder, CEO, CTO, advisor, etc.), not just those explicitly called "founder". The primary speakers who represent the company are likely founders.
+- For funding stage: look for clues like "angel round", "pre-seed", "seed round", "raising $X at $Y valuation". A sub-$5M valuation with a small raise is typically pre-seed. $5-15M valuation is seed.
+- For valuation/amount: "$3M post-money valuation" means valuation=3000000. "$50K angel round" means amount_raising=50000.
+- If a product or brand name is mentioned that differs from the company name, include it in the one-liner.
+
 Return ONLY valid JSON with these keys (use null for unknown fields):
 {
-  "name": "company or product name being discussed (NOT the person's name unless they ARE the company)",
-  "one_liner": "one sentence summary of what the company does",
-  "website": "company website if mentioned, or null",
+  "name": "company name (the legal/brand entity, NOT the product name if different)",
+  "one_liner": "one sentence summary of what the company does, mention the product name if it differs from the company name",
+  "website": "company website — infer from company name if not explicitly stated, e.g. 'SoinsAI' -> 'soinsai.com' or 'soin.ai'",
   "company_linkedin_url": "company LinkedIn URL if mentioned, or null",
   "location": "city/region if mentioned, or null",
-  "stage": "one of: pre_seed, seed, series_a, series_b, growth, other — or null",
+  "stage": "one of: Pre-seed, Seed, Series A, Series B, Growth, Other — infer from context if not explicit",
   "amount_raising": "number in USD (no commas/symbols) or null",
   "valuation": "number in USD (no commas/symbols) or null",
-  "founders": [{"name": "founder name", "linkedin_url": null, "email": null}],
+  "founders": [
+    {
+      "name": "person's full name",
+      "role": "their role (Founder, CEO, CTO, etc.)",
+      "linkedin_url": "their LinkedIn URL if mentioned, or null",
+      "email": "their email if mentioned, or null"
+    }
+  ],
   "summary": "3-5 bullet point summary of the key takeaways from the call"
 }
 Do NOT wrap in markdown code fences. Return raw JSON only."""

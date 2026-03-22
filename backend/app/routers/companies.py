@@ -3,7 +3,7 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -243,6 +243,25 @@ def suggest_deal_from_web(company_id: str, db: Session = Depends(get_db)):
     from app.agents.deal_extractor import suggest_from_web_page
     result = suggest_from_web_page(text, company.name)
     return DealSuggestions(**result)
+
+
+@router.post("/{company_id}/logo", response_model=CompanyOut)
+def upload_company_logo(
+    company_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    import base64
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    content = file.file.read()
+    media_type = file.content_type or "image/png"
+    data_url = f"data:{media_type};base64,{base64.b64encode(content).decode()}"
+    company.logo_url = data_url
+    db.commit()
+    db.refresh(company)
+    return _enrich(company, db)
 
 
 @router.post("/{company_id}/refresh-logo", response_model=CompanyOut)

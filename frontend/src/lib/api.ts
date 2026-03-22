@@ -215,6 +215,24 @@ export const companies = {
       body: JSON.stringify(body),
     }),
 
+  uploadLogo: async (id: string, file: File): Promise<Company> => {
+    const form = new FormData();
+    form.append("file", file);
+    const token = getToken();
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${BASE}/companies/${id}/logo`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? `Upload failed ${res.status}`);
+    }
+    return res.json();
+  },
+
   refreshLogo: (id: string) =>
     request<Company>(`/companies/${id}/refresh-logo`, { method: "POST" }),
 

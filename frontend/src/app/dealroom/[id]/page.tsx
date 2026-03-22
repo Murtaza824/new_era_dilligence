@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-import { ArrowLeft, Ban, Briefcase, ExternalLink, ImagePlus, Loader2, MapPin, Pencil, RefreshCw, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Ban, Briefcase, ExternalLink, Loader2, MapPin, Pencil, RefreshCw, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 import { CompanyLogo } from "@/components/company-logo";
@@ -16,7 +16,6 @@ import { OverviewTab } from "@/components/jarvis/overview-tab";
 import { SimulationTab } from "@/components/jarvis/simulation-tab";
 import { TouchpointsSection } from "@/components/touchpoints-section";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { companies as companiesApi, portfolioApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Company } from "@/types";
@@ -49,14 +48,20 @@ export default function CompanyDetailPage() {
   const [tab, setTab] = useState<Tab>("overview");
   const [addingToPortfolio, setAddingToPortfolio] = useState(false);
   const [refreshingLogo, setRefreshingLogo] = useState(false);
-  const [editingLogo, setEditingLogo] = useState(false);
-  const [logoUrlInput, setLogoUrlInput] = useState("");
-  const [savingLogo, setSavingLogo] = useState(false);
-  const logoInputRef = useRef<HTMLInputElement>(null);
+  const logoFileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (editingLogo) logoInputRef.current?.focus();
-  }, [editingLogo]);
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const updated = await companiesApi.uploadLogo(companyId, file);
+      setCompany(updated);
+      toast.success("Logo updated");
+    } catch {
+      toast.error("Failed to upload logo");
+    }
+    if (logoFileRef.current) logoFileRef.current.value = "";
+  };
 
   useEffect(() => {
     if (tabFromUrl && VALID_TABS.includes(tabFromUrl as Tab)) {
@@ -120,63 +125,16 @@ export default function CompanyDetailPage() {
         <div className="flex items-start gap-4">
           <div className="relative group/logo">
             <CompanyLogo name={company.name} logoUrl={company.logo_url ?? null} size="lg" />
+            <input type="file" accept="image/*" ref={logoFileRef} onChange={handleLogoUpload} className="hidden" />
             <button
               type="button"
-              onClick={() => { setEditingLogo(true); setLogoUrlInput(company.logo_url ?? ""); }}
+              onClick={() => logoFileRef.current?.click()}
               className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 opacity-0 group-hover/logo:opacity-100 transition-opacity cursor-pointer"
-              title="Edit logo"
+              title="Upload logo"
             >
               <Pencil className="size-4 text-white" />
             </button>
           </div>
-          {editingLogo && (
-            <div className="flex flex-col gap-1.5 self-center">
-              <div className="flex items-center gap-1.5">
-                <Input
-                  placeholder="Paste logo URL…"
-                  value={logoUrlInput}
-                  onChange={(e) => setLogoUrlInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      if (!logoUrlInput.trim()) return;
-                      setSavingLogo(true);
-                      companiesApi
-                        .update(companyId, { logo_url: logoUrlInput.trim() })
-                        .then((updated) => { setCompany(updated); setEditingLogo(false); toast.success("Logo updated"); })
-                        .catch(() => toast.error("Failed to save logo"))
-                        .finally(() => setSavingLogo(false));
-                    }
-                    if (e.key === "Escape") setEditingLogo(false);
-                  }}
-                  className="h-8 w-56 text-xs"
-                  ref={logoInputRef}
-                />
-                <Button
-                  size="icon-sm"
-                  disabled={savingLogo || !logoUrlInput.trim()}
-                  onClick={() => {
-                    setSavingLogo(true);
-                    companiesApi
-                      .update(companyId, { logo_url: logoUrlInput.trim() })
-                      .then((updated) => { setCompany(updated); setEditingLogo(false); toast.success("Logo updated"); })
-                      .catch(() => toast.error("Failed to save logo"))
-                      .finally(() => setSavingLogo(false));
-                  }}
-                >
-                  {savingLogo ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setEditingLogo(false)}
-                  className="rounded p-1 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
-              <p className="text-[10px] text-muted-foreground">Paste an image URL and press Enter</p>
-            </div>
-          )}
           <div>
             <div className="flex items-center gap-3">
               <h1 className="font-display text-3xl font-semibold tracking-tight">
