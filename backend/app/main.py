@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from app.auth import hash_password
 from app.database import SessionLocal, init_db
 from app.models import AgentJob, ContactIntroductionSuggestion, NetworkContact, User  # import so create_all creates tables
-from app.routers import activity, agent_chat, auth, companies, dealflow, documents, integrations, locations, memos, network, news, portfolio, simulations, touchpoints, tracked_persons
+from app.routers import activity, agent_chat, auth, companies, cos_api, dealflow, documents, integrations, locations, memos, network, news, portfolio, simulations, touchpoints, tracked_persons
 
 logger = logging.getLogger("jarvis")
 
@@ -86,6 +86,7 @@ app.include_router(tracked_persons.router)
 app.include_router(locations.router)
 app.include_router(touchpoints.router)
 app.include_router(integrations.router)
+app.include_router(cos_api.router)
 
 
 @app.exception_handler(Exception)

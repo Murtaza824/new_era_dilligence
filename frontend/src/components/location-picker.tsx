@@ -123,7 +123,7 @@ export function LocationPicker({
                   setDraft("");
                   setOpen(false);
                 }}
-                className="w-full px-3 py-1.5 text-left text-sm text-primary hover:bg-muted"
+                className="w-full px-3 py-1.5 text-left text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-muted"
               >
                 + Add &quot;{draft.trim()}&quot;
               </button>
