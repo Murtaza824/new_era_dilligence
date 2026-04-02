@@ -431,6 +431,119 @@ def _migrate_dealflow_logo_url():
             conn.commit()
 
 
+def _migrate_backfill_portfolio_to_dealflow():
+    """Create a DealflowEntry (status='invested') for each portfolio company that lacks one."""
+    import uuid
+    from datetime import datetime, timezone
+
+    db = SessionLocal()
+    try:
+        from app.models.portfolio import PortfolioSnapshot
+        from app.models.company import Company
+        from app.models.dealflow_entry import DealflowEntry
+
+        snapshots = db.query(PortfolioSnapshot).all()
+        for snap in snapshots:
+            if not snap.company_id:
+                continue
+            company = db.query(Company).filter(Company.id == snap.company_id).first()
+            if not company:
+                continue
+            if company.dealflow_entry_id:
+                existing = db.query(DealflowEntry).filter(
+                    DealflowEntry.id == company.dealflow_entry_id
+                ).first()
+                if existing:
+                    continue
+            entry = DealflowEntry(
+                id=str(uuid.uuid4()),
+                name=company.name,
+                website=company.website,
+                one_liner=company.one_liner,
+                location=company.location,
+                stage=company.investment_stage,
+                amount_raising=company.amount_raising,
+                valuation=company.entry_valuation,
+                notes=company.notes,
+                source_type=company.source_type,
+                source_detail=company.source_detail,
+                company_linkedin_url=company.company_linkedin_url,
+                logo_url=company.logo_url,
+                status="invested",
+            )
+            db.add(entry)
+            db.flush()
+            company.dealflow_entry_id = entry.id
+            company.deal_status = "portfolio"
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _migrate_backfill_companies_for_dealflow():
+    """Create a Company for every DealflowEntry that doesn't have one linked."""
+    db = SessionLocal()
+    try:
+        from app.models.company import Company
+        from app.models.dealflow_entry import DealflowEntry
+
+        STATUS_MAP = {
+            "none": "pipeline",
+            "lead": "pipeline",
+            "tracking": "pipeline",
+            "reached_out": "pipeline",
+            "active": "active",
+            "passed": "passed",
+            "invested": "portfolio",
+        }
+
+        entries = db.query(DealflowEntry).all()
+        for entry in entries:
+            existing = db.query(Company).filter(
+                Company.dealflow_entry_id == entry.id
+            ).first()
+            if existing:
+                continue
+            company = Company(
+                name=entry.name,
+                website=entry.website,
+                dealflow_entry_id=entry.id,
+                entry_valuation=entry.valuation,
+                amount_raising=entry.amount_raising,
+                investment_stage=entry.stage,
+                one_liner=entry.one_liner,
+                location=entry.location,
+                notes=entry.notes,
+                source_type=entry.source_type,
+                source_detail=entry.source_detail,
+                company_linkedin_url=entry.company_linkedin_url,
+                logo_url=entry.logo_url,
+                deal_status=STATUS_MAP.get(entry.status, "pipeline"),
+            )
+            db.add(company)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _migrate_pipeline_deal_status():
+    """Map early-stage dealflow statuses to Company.deal_status='pipeline'."""
+    with engine.connect() as conn:
+        conn.execute(text(
+            "UPDATE companies SET deal_status = 'pipeline' "
+            "WHERE dealflow_entry_id IS NOT NULL "
+            "AND deal_status = 'active' "
+            "AND dealflow_entry_id IN ("
+            "  SELECT id FROM dealflow_entries WHERE status IN ('none', 'lead', 'tracking', 'reached_out')"
+            ")"
+        ))
+        conn.commit()
+
+
 def init_db():
     """Create all tables. Called on startup."""
     Base.metadata.create_all(bind=engine)
@@ -453,3 +566,6 @@ def init_db():
     _migrate_user_name()
     _migrate_portfolio_deal_status()
     _migrate_in_diligence_to_active()
+    _migrate_backfill_portfolio_to_dealflow()
+    _migrate_backfill_companies_for_dealflow()
+    _migrate_pipeline_deal_status()

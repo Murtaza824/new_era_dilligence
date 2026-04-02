@@ -51,14 +51,14 @@ def create_company(body: CompanyCreate, db: Session = Depends(get_db)):
 
 @router.get("", response_model=list[CompanyOut])
 def list_companies(
-    status: Optional[str] = Query(None, description="Filter by deal_status (active, archived, passed). Omit for all."),
+    status: Optional[str] = Query(None, description="Filter by deal_status. Omit to get Active Deals only (deal_status=active)."),
     db: Session = Depends(get_db),
 ):
     q = db.query(Company)
     if status:
         q = q.filter(Company.deal_status == status)
     else:
-        q = q.filter(Company.deal_status != "portfolio")
+        q = q.filter(Company.deal_status == "active")
     companies = q.order_by(Company.created_at.desc()).all()
     return [_enrich(c, db) for c in companies]
 
@@ -104,27 +104,38 @@ def delete_company(company_id: str, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+DEAL_STATUS_TO_DEALFLOW: dict[str, str] = {
+    "pipeline": "lead",
+    "active": "active",
+    "passed": "passed",
+    "portfolio": "invested",
+}
+
+
 @router.post("/{company_id}/status", response_model=CompanyOut)
 def update_deal_status(
     company_id: str,
-    status: str = Query(..., description="New deal status: active, archived, or passed"),
+    status: str = Query(..., description="New deal status: active, pipeline, passed, or portfolio"),
     db: Session = Depends(get_db),
 ):
-    """Update a company's deal status (active / archived / passed)."""
-    if status not in ("active", "archived", "passed"):
-        raise HTTPException(status_code=400, detail="Status must be active, archived, or passed")
+    """Update a company's deal status and sync back to the linked dealflow entry."""
+    allowed = {"active", "pipeline", "passed", "portfolio", "archived"}
+    if status not in allowed:
+        raise HTTPException(status_code=400, detail=f"Status must be one of {sorted(allowed)}")
+    if status == "archived":
+        status = "passed"
     company = db.query(Company).filter(Company.id == company_id).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     company.deal_status = status
-    # Sync status back to the linked dealflow entry
     if company.dealflow_entry_id:
         df_entry = db.query(DealflowEntry).filter(
             DealflowEntry.id == company.dealflow_entry_id
         ).first()
         if df_entry:
-            status_map = {"active": "active", "passed": "passed", "archived": "passed"}
-            df_entry.status = status_map.get(status, df_entry.status)
+            new_df_status = DEAL_STATUS_TO_DEALFLOW.get(status)
+            if new_df_status:
+                df_entry.status = new_df_status
     db.commit()
     db.refresh(company)
     return _enrich(company, db)
@@ -356,6 +367,7 @@ def _enrich(company: Company, db: Session) -> dict:
         "source_detail": company.source_detail,
         "company_linkedin_url": company.company_linkedin_url,
         "deal_status": company.deal_status or "active",
+        "dealflow_entry_id": company.dealflow_entry_id,
         "created_at": company.created_at,
         "updated_at": company.updated_at,
         "document_count": doc_count,

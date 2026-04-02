@@ -37,6 +37,52 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)],
 )
 
+# ── Dealflow status → Company deal_status mapping ────────────────────────────
+DEALFLOW_STATUS_TO_DEAL_STATUS: dict[str, str] = {
+    "none": "pipeline",
+    "lead": "pipeline",
+    "tracking": "pipeline",
+    "reached_out": "pipeline",
+    "active": "active",
+    "passed": "passed",
+    "invested": "portfolio",
+}
+
+
+def _sync_company_deal_status(entry: DealflowEntry, db: Session) -> None:
+    """Push the dealflow entry's status to its linked Company.deal_status."""
+    company = db.query(Company).filter(Company.dealflow_entry_id == entry.id).first()
+    if company:
+        new_status = DEALFLOW_STATUS_TO_DEAL_STATUS.get(entry.status, "pipeline")
+        if company.deal_status != new_status:
+            company.deal_status = new_status
+
+
+def _create_company_for_entry(entry: DealflowEntry, db: Session) -> Company:
+    """Create a Company linked to a DealflowEntry (idempotent)."""
+    existing = db.query(Company).filter(Company.dealflow_entry_id == entry.id).first()
+    if existing:
+        return existing
+    company = Company(
+        name=entry.name,
+        website=entry.website,
+        dealflow_entry_id=entry.id,
+        entry_valuation=entry.valuation,
+        amount_raising=entry.amount_raising,
+        investment_stage=entry.stage,
+        one_liner=entry.one_liner,
+        location=entry.location,
+        notes=entry.notes,
+        source_type=entry.source_type,
+        source_detail=entry.source_detail,
+        company_linkedin_url=entry.company_linkedin_url,
+        logo_url=entry.logo_url,
+        deal_status=DEALFLOW_STATUS_TO_DEAL_STATUS.get(entry.status, "pipeline"),
+    )
+    db.add(company)
+    db.flush()
+    return company
+
 
 def _entry_to_out(entry: DealflowEntry, db: Session) -> DealflowEntryOut:
     founders = (
@@ -139,6 +185,8 @@ def create_entry(
         added_by_user_id=current_user.id,
     )
     db.add(entry)
+    db.flush()
+    _create_company_for_entry(entry, db)
     db.commit()
     db.refresh(entry)
     if body.founders:
@@ -147,52 +195,10 @@ def create_entry(
     return _entry_to_out(entry, db)
 
 
-_NOTES_EXTRACTION_SYSTEM = """You are a venture capital analyst. Extract structured deal information from meeting/call notes.
-
-IMPORTANT RULES:
-- If the company website is not explicitly mentioned, INFER it from the company name. Try common patterns like "companyname.com", "companyname.ai", "companyname.io", "getcompanyname.com". Pick the most likely one.
-- Extract ALL people mentioned with their roles (founder, CEO, CTO, advisor, etc.), not just those explicitly called "founder". The primary speakers who represent the company are likely founders.
-- For funding stage: look for clues like "angel round", "pre-seed", "seed round", "raising $X at $Y valuation". A sub-$5M valuation with a small raise is typically pre-seed. $5-15M valuation is seed.
-- For valuation/amount: "$3M post-money valuation" means valuation=3000000. "$50K angel round" means amount_raising=50000.
-- If a product or brand name is mentioned that differs from the company name, include it in the one-liner.
-
-Return ONLY valid JSON with these keys (use null for unknown fields):
-{
-  "name": "company name (the legal/brand entity, NOT the product name if different)",
-  "one_liner": "one sentence summary of what the company does, mention the product name if it differs from the company name",
-  "website": "company website — infer from company name if not explicitly stated, e.g. 'SoinsAI' -> 'soinsai.com' or 'soin.ai'",
-  "company_linkedin_url": "company LinkedIn URL if mentioned, or null",
-  "location": "city/region if mentioned, or null",
-  "stage": "one of: Pre-seed, Seed, Series A, Series B, Growth, Other — infer from context if not explicit",
-  "amount_raising": "number in USD (no commas/symbols) or null",
-  "valuation": "number in USD (no commas/symbols) or null",
-  "founders": [
-    {
-      "name": "person's full name",
-      "role": "their role (Founder, CEO, CTO, etc.)",
-      "linkedin_url": "their LinkedIn URL if mentioned, or null",
-      "email": "their email if mentioned, or null"
-    }
-  ],
-  "summary": "3-5 bullet point summary of the key takeaways from the call"
-}
-Do NOT wrap in markdown code fences. Return raw JSON only."""
-
-
 def _extract_deal_from_notes(notes_text: str) -> dict:
     """Use LLM to extract structured deal fields from raw call notes."""
-    import json
-    import re
-    from app.llm import complete
-
-    raw = complete(
-        prompt=f"Extract deal information from these meeting notes:\n\n{notes_text}",
-        system=_NOTES_EXTRACTION_SYSTEM,
-        max_tokens=1024,
-    )
-    raw = re.sub(r"^```(?:json)?\s*", "", raw.strip())
-    raw = re.sub(r"\s*```\s*$", "", raw)
-    return json.loads(raw)
+    from app.services.granola import _extract_deal_from_notes as _shared_extract
+    return _shared_extract(notes_text)
 
 
 def _try_fetch_url(url: str) -> Optional[str]:
@@ -258,6 +264,8 @@ def create_entry_from_notes(
         added_by_user_id=current_user.id,
     )
     db.add(entry)
+    db.flush()
+    _create_company_for_entry(entry, db)
     db.commit()
     db.refresh(entry)
 
@@ -354,8 +362,11 @@ def update_entry(
         raise HTTPException(status_code=404, detail="Dealflow entry not found")
     data = body.model_dump(exclude_unset=True)
     founders = data.pop("founders", None)
+    status_changed = "status" in data and data["status"] != entry.status
     for field, value in data.items():
         setattr(entry, field, value)
+    if status_changed:
+        _sync_company_deal_status(entry, db)
     db.commit()
     db.refresh(entry)
     if founders is not None:

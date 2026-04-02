@@ -58,6 +58,7 @@ export interface Company {
   source_detail: string | null;
   company_linkedin_url: string | null;
   deal_status: string;
+  dealflow_entry_id: string | null;
   created_at: string;
   updated_at: string;
   document_count: number;

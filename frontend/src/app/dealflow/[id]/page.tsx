@@ -242,6 +242,12 @@ export default function DealflowDetailPage() {
     }
   };
 
+  useEffect(() => {
+    if (!editing && entry?.promoted_company_id) {
+      router.replace(`/dealroom/${entry.promoted_company_id}`);
+    }
+  }, [editing, entry?.promoted_company_id, router]);
+
   if (loading || !entry) {
     return (
       <div className="container mx-auto max-w-5xl px-6 pt-10 pb-20">

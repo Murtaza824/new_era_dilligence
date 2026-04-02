@@ -33,6 +33,7 @@ class CompanyOut(BaseModel):
     source_detail: Optional[str] = None
     company_linkedin_url: Optional[str] = None
     deal_status: str = "active"
+    dealflow_entry_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     document_count: int = 0

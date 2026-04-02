@@ -570,7 +570,7 @@ export default function DealflowPage() {
                     <div className="flex min-w-0 items-center gap-2">
                       <CompanyLogo name={e.name} logoUrl={e.logo_url} size="sm" />
                       <Link
-                        href={`/dealflow/${e.id}`}
+                        href={e.promoted_company_id ? `/dealroom/${e.promoted_company_id}` : `/dealflow/${e.id}`}
                         className="min-w-0 truncate font-medium text-foreground hover:underline"
                         title={e.name}
                       >

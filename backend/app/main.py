@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -14,7 +15,7 @@ from fastapi.responses import JSONResponse
 
 from app.auth import hash_password
 from app.database import SessionLocal, init_db
-from app.models import AgentJob, ContactIntroductionSuggestion, NetworkContact, User  # import so create_all creates tables
+from app.models import AgentJob, ContactIntroductionSuggestion, GranolaSyncRecord, NetworkContact, User  # noqa: F401 — import so create_all creates tables
 from app.routers import activity, agent_chat, auth, companies, cos_api, dealflow, documents, integrations, locations, memos, network, news, portfolio, simulations, touchpoints, tracked_persons
 
 logger = logging.getLogger("jarvis")
@@ -52,12 +53,46 @@ _CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhos
 CORS_ORIGINS_LIST = [o.strip() for o in _CORS_ORIGINS.split(",") if o.strip()]
 
 
+async def _granola_sync_loop():
+    """Periodically poll Granola for new meeting notes."""
+    interval = int(os.getenv("GRANOLA_SYNC_INTERVAL_MINUTES", "5")) * 60
+    await asyncio.sleep(30)  # initial delay to let app fully start
+    while True:
+        try:
+            from app.services.granola import process_new_notes
+            result = await asyncio.get_event_loop().run_in_executor(None, process_new_notes)
+            if result.get("new_notes"):
+                logger.info("Granola sync: %s", result)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error("Granola sync loop error: %s", exc)
+        await asyncio.sleep(interval)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: create DB tables and seed admin users if empty
     init_db()
     _seed_admin_if_empty()
+
+    granola_task = None
+    granola_enabled = (
+        os.getenv("GRANOLA_SYNC_ENABLED", "true").lower() in ("true", "1", "yes")
+        and bool(os.getenv("GRANOLA_API_KEY", ""))
+    )
+    if granola_enabled:
+        granola_task = asyncio.create_task(_granola_sync_loop())
+        logger.info("Granola auto-sync enabled (interval: %s min)", os.getenv("GRANOLA_SYNC_INTERVAL_MINUTES", "5"))
+
     yield
+
+    if granola_task:
+        granola_task.cancel()
+        try:
+            await granola_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Jarvis API", version="0.1.0", lifespan=lifespan)

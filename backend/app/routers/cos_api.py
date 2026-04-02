@@ -58,6 +58,7 @@ COS_TO_JARVIS_STAGE: dict[str, str] = {
 
 # Company deal_status → CoS stage (companies are always in active diligence or later)
 COMPANY_STATUS_TO_COS: dict[str, str] = {
+    "pipeline": "sourcing",
     "active": "diligence",
     "passed": "passed",
     "portfolio": "closed",

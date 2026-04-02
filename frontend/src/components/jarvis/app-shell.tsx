@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { Bot, Building2, Briefcase, LayoutList, LogOut, Newspaper, PanelRightOpen, Users } from "lucide-react";
+import { Bot, Building2, Briefcase, LayoutList, LogOut, Newspaper, PanelRightOpen, Settings, Users } from "lucide-react";
 
 import { AgentActivityPanel } from "@/components/jarvis/agent-activity-panel";
 import { AgentChatPanel } from "@/components/jarvis/agent-chat-panel";
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { label: "Portfolio", href: "/portfolio", icon: Briefcase },
   { label: "Network", href: "/network", icon: Users },
   { label: "Intelligence", href: "/intelligence", icon: Newspaper },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

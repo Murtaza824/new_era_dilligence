@@ -523,6 +523,34 @@ export const gmailApi = {
     request<{ ok: boolean; message: string }>("/integrations/gmail/sync", { method: "POST" }),
 };
 
+// ── Granola integration ──────────────────────────────────────────────────
+
+export interface GranolaStatus {
+  configured: boolean;
+  sync_enabled: boolean;
+  sync_interval_minutes: number;
+  folder_filter: string | null;
+  last_sync_at: string | null;
+  total_notes_synced: number;
+}
+
+export interface GranolaSyncRecord {
+  id: string;
+  granola_note_id: string;
+  dealflow_entry_id: string | null;
+  company_id: string | null;
+  note_title: string | null;
+  processed_at: string | null;
+}
+
+export const granolaApi = {
+  status: () => request<GranolaStatus>("/integrations/granola/status"),
+  sync: () =>
+    request<{ ok: boolean; message: string }>("/integrations/granola/sync", { method: "POST" }),
+  history: (limit = 50) =>
+    request<GranolaSyncRecord[]>(`/integrations/granola/history?limit=${limit}`),
+};
+
 // ── Touchpoints ───────────────────────────────────────────────────────────
 
 export interface Touchpoint {

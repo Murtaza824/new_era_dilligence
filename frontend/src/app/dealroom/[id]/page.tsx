@@ -178,6 +178,14 @@ export default function CompanyDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {company.dealflow_entry_id && (
+            <Link href={`/dealflow/${company.dealflow_entry_id}?edit=1`}>
+              <Button variant="outline" size="sm">
+                <Pencil className="mr-1.5 size-4" />
+                Edit Pipeline Info
+              </Button>
+            </Link>
+          )}
           {(!company.deal_status || company.deal_status === "active") && (
             <>
               <Button

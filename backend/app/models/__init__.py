@@ -7,6 +7,7 @@ from app.models.email_account import EmailAccount
 from app.models.email_message import EmailMessage
 from app.models.dealflow_founder import DealflowFounder
 from app.models.document import Document
+from app.models.granola_sync import GranolaSyncRecord
 from app.models.intelligence_digest import IntelligenceDigest
 from app.models.intelligence_source import IntelligenceSource
 from app.models.memo import Memo, MemoRevision
@@ -31,6 +32,7 @@ __all__ = [
     "EmailAccount",
     "EmailMessage",
     "Document",
+    "GranolaSyncRecord",
     "IntelligenceDigest",
     "IntelligenceSource",
     "Memo",
