@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import threading
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -368,11 +369,25 @@ def _note_in_folder(note: dict, folder_name: str) -> bool:
     )
 
 
+_sync_lock = threading.Lock()
+
+
 def process_new_notes() -> dict:
     """
     Poll Granola for new notes and process them.
     Returns a summary dict with counts.
+    Uses a lock to prevent concurrent syncs from racing.
     """
+    if not _sync_lock.acquire(blocking=False):
+        return {"status": "skipped", "reason": "sync already in progress"}
+
+    try:
+        return _process_new_notes_inner()
+    finally:
+        _sync_lock.release()
+
+
+def _process_new_notes_inner() -> dict:
     api_key = os.getenv("GRANOLA_API_KEY", "")
     if not api_key:
         return {"status": "skipped", "reason": "GRANOLA_API_KEY not configured"}
@@ -427,6 +442,7 @@ def process_new_notes() -> dict:
                     entries_created += 1
             except Exception as exc:
                 logger.error("Failed to process Granola note %s: %s", note_id, exc)
+                db.rollback()
                 errors += 1
 
         return {
